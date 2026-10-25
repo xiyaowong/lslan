@@ -17,7 +17,7 @@ var iconPNG []byte
 // card and the detail sidebar side by side, bounded by the screen it
 // opens on so a small laptop gets a window it can still use.
 const (
-	prefWidth, prefHeight   = 1240, 800
+	prefWidth, prefHeight   = 1080, 800
 	minWidth, minHeight     = 880, 560
 	widthShare, heightShare = 0.82, 0.86
 )
