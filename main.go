@@ -15,6 +15,10 @@ var iconPNG []byte
 
 func main() {
 	a := ui.NewApp(iconPNG)
+	// The interface is always light; the window's own caption and buttons
+	// follow it rather than a dark system, which drew them light on our
+	// light ground.
+	mygo.Theme.SetSource(mygo.ThemeLight)
 	mygo.App.WhenReady(func() {
 		a.AttachWindow(mygo.WindowOptions{
 			Title:     "局域网 IP 扫描",

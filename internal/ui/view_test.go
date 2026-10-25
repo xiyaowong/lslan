@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/netip"
-	"slices"
 	"testing"
 	"time"
 
@@ -116,55 +115,33 @@ func TestPing(t *testing.T) {
 	tt.Frame()
 }
 
-// TestRowContextMenu right-clicks a row: the menu opens with the row's
-// actions, right-clicking selects the row, and choosing an item acts on
-// the row right-clicked.
+// TestRowContextMenu: a row carries no context menu of its own; its
+// actions live in the detail panel, each fact with a button copying it.
 func TestRowContextMenu(t *testing.T) {
 	a := newApp()
 	tt := ui.NewTester(a.View, 1000, 680)
 
-	ip1 := netip.MustParseAddr("192.168.1.5")
-	ip2 := netip.MustParseAddr("192.168.1.6")
-	a.hosts[ip1] = model.Host{IP: ip1, State: model.StateOnline, MAC: "AA:BB"}
-	a.hosts[ip2] = model.Host{IP: ip2, State: model.StateOnline}
-	// Select the second row, then right-click the first's IP cell.
-	a.selRow, a.selIP = 1, ip2
+	ip := netip.MustParseAddr("192.168.1.5")
+	a.hosts[ip] = model.Host{IP: ip, State: model.StateOnline, MAC: "AA:BB", Hostname: "router"}
 	tt.Frame()
-	r, ok := tt.Find(ip1.String())
+	r, ok := tt.Find(ip.String())
 	if !ok {
-		t.Fatalf("row of %s not found", ip1)
+		t.Fatalf("row of %s not found", ip)
 	}
 	tt.RightClickAt(r.X+2, r.Y+r.H/2)
 	tt.Frame()
-
-	want := []string{"复制 IP", "复制 MAC", "-", "Ping", "端口扫描", "浏览器打开"}
-	if got := tt.Menu(); !slices.Equal(got, want) {
-		t.Errorf("menu = %q, want %q", got, want)
-	}
-	if a.selIP != ip1 {
-		t.Errorf("right-click selection = %s, want %s", a.selIP, ip1)
+	if got := tt.Menu(); len(got) != 0 {
+		t.Errorf("menu = %q, want none", got)
 	}
 
-	// A host without a MAC has that item grayed out, not hidden.
-	tt.CloseMenu()
+	// The detail panel copies a fact through its button.
+	a.selRow, a.selIP = 0, ip
 	tt.Frame()
-	r, ok = tt.Find(ip2.String())
-	if !ok {
-		t.Fatalf("row of %s not found", ip2)
+	if err := tt.Click("复制MAC 地址"); err != nil {
+		t.Fatalf("click copy: %v", err)
 	}
-	tt.RightClickAt(r.X+2, r.Y+r.H/2)
-	tt.Frame()
-	if got := tt.Menu(); !slices.Equal(got, want) {
-		t.Errorf("menu = %q, want %q", got, want)
-	}
-	if err := tt.ChooseMenuItem("复制 MAC"); err == nil {
-		t.Error("复制 MAC chosen though the host has no MAC")
-	}
-	if err := tt.ChooseMenuItem("复制 IP"); err != nil {
-		t.Fatalf("choose 复制 IP: %v", err)
-	}
-	if tt.Clipboard() != ip2.String() {
-		t.Errorf("clipboard = %q, want %q", tt.Clipboard(), ip2.String())
+	if tt.Clipboard() != "AA:BB" {
+		t.Errorf("clipboard = %q, want AA:BB", tt.Clipboard())
 	}
 }
 
@@ -227,9 +204,8 @@ func TestPingTerminalFallback(t *testing.T) {
 	}
 }
 
-// TestDetailLayout: selecting a host leaves the table at least half the
-// room and fills the detail panel — facts, actions, the port guide line —
-// with no empty stretch (issue #17).
+// TestDetailLayout: selecting a host puts the detail panel beside the
+// host tree, at its right, with the facts and the port guide line.
 func TestDetailLayout(t *testing.T) {
 	a := newApp()
 	tt := ui.NewTester(a.View, 1000, 680)
@@ -250,14 +226,14 @@ func TestDetailLayout(t *testing.T) {
 	if row.H <= 0 {
 		t.Error("table row collapsed")
 	}
-	head, ok := tt.Find("复制")
+	head, ok := tt.Find("关闭详情")
 	if !ok {
-		t.Fatal("detail header missing")
+		t.Fatalf("detail header missing, texts %q", tt.Texts())
 	}
-	if head.Y < row.Y+row.H {
-		t.Errorf("detail header at y=%v sits inside the table pane (row ends at %v)", head.Y, row.Y+row.H)
+	if head.X <= row.X+row.W {
+		t.Errorf("detail panel at x=%v sits beside the row ending at %v, want it at the right", head.X, row.X+row.W)
 	}
-	for _, s := range []string{"MAC", "厂商", "主机名", "上次在线", "开放端口", "点「端口扫描」"} {
+	for _, s := range []string{"MAC 地址", "厂商", "主机名", "上次在线", "开放端口", "还没扫描过"} {
 		if !tt.HasText(s) {
 			t.Errorf("%q missing from the detail panel, texts %q", s, tt.Texts())
 		}
