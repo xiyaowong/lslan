@@ -34,6 +34,13 @@ type Port struct {
 	Open    bool
 }
 
+// Service is one service a host advertises over the network's service
+// discovery (mDNS). Name is the DNS-SD type, e.g. "_http._tcp".
+type Service struct {
+	Name string
+	Port int
+}
+
 // Host is one address in the scanned range.
 type Host struct {
 	IP       netip.Addr
@@ -42,7 +49,9 @@ type Host struct {
 	MAC      string
 	Vendor   string
 	Ports    []Port
+	Services []Service
 	Gateway  bool
+	ViaMDNS  bool // found through service discovery, not a probe
 	LastSeen time.Time
 }
 

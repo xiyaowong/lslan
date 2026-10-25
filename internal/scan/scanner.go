@@ -132,25 +132,79 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 		return &h
 	}
 
-	// enrichHost stores a freshly discovered host, emits it, then
-	// starts its hostname lookup: the row lights up with MAC/vendor at
-	// once, then updates in place when the name resolves. Events carry
-	// snapshots, never the live record — the lookup callback mutates it.
+	// mDNS runs beside the sweep: unicast queries to every host found
+	// and a passive ear on the multicast group, both folded back into
+	// the same host map by IP.
+	var mdns *mdnsRunner
+	mdns = startMDNS(ctx, nic, func(ip netip.Addr, hostname string, svcs []model.Service) {
+		if ctx.Err() != nil {
+			return
+		}
+		key := be32(ip)
+		dataMu.Lock()
+		h, known := hosts[key]
+		if !known {
+			h = &model.Host{IP: ip, State: model.StateOnline, LastSeen: time.Now(), ViaMDNS: true}
+			hosts[key] = h
+		}
+		changed := !known
+		if hostname != "" && hostname != h.Hostname {
+			h.Hostname = hostname
+			changed = true
+		}
+		for _, sv := range svcs {
+			n := len(h.Services)
+			h.Services = appendService(h.Services, sv)
+			changed = changed || len(h.Services) != n
+		}
+		h.LastSeen = time.Now()
+		dataMu.Unlock()
+		if changed {
+			if !known {
+				online.Add(1)
+			}
+			s.emit(ctx, Event{Kind: EventHost, Host: snapshotHost(key)})
+		}
+		mdns.probe(ip)
+	})
+
+	// enrichHost stores a freshly discovered host, emits it, asks mDNS
+	// about it, then starts its hostname lookup: the row lights up with
+	// MAC/vendor at once, then updates in place when the name lands.
+	// Events carry snapshots, never the live record — the lookup
+	// callback mutates it.
 	//
-	// Called at most once per key: workers see disjoint addresses and
-	// the consistency pass only for keys not stored here yet.
+	// Called at most once per key from the sweep side: workers see
+	// disjoint addresses and the consistency pass only for keys not
+	// stored here yet. mDNS may have stored facts for the key first,
+	// so those survive the store below.
 	enrichHost := func(key uint32, h *model.Host) {
 		dataMu.Lock()
+		old, known := hosts[key]
+		if known {
+			if h.Hostname == "" {
+				h.Hostname = old.Hostname
+			}
+			h.Services = old.Services
+			h.ViaMDNS = h.ViaMDNS || old.ViaMDNS
+		}
 		hosts[key] = h
 		dataMu.Unlock()
-		online.Add(1)
+		if !known {
+			online.Add(1)
+		}
 		s.emit(ctx, Event{Kind: EventHost, Host: snapshotHost(key)})
+		mdns.probe(addrFromUint32(key))
 		names.lookup(key, addrFromUint32(key), func(name string) {
 			if name == "" {
 				return
 			}
 			dataMu.Lock()
-			hosts[key].Hostname = name
+			// A mDNS hostname, set directly by the device, wins over
+			// the reverse-DNS answer.
+			if hosts[key].Hostname == "" {
+				hosts[key].Hostname = name
+			}
 			dataMu.Unlock()
 			s.emit(ctx, Event{Kind: EventHost, Host: snapshotHost(key)})
 		})
