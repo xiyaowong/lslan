@@ -108,9 +108,10 @@ type app struct {
 	selRow      int
 	selIP       netip.Addr
 
-	// tableShare is the host card's share of the split with the detail
-	// panel, in percent; the rest is the detail panel.
-	tableShare float32
+	// cardWidth is the host card's width in DIPs while the detail panel
+	// shows; the panel takes the rest, so a wide window widens the details
+	// rather than the table.
+	cardWidth float32
 
 	// Ping state; pingGen drops samples of a stopped session. pingTerm is
 	// the terminal plugin view of the session, nil when it could not be
@@ -161,7 +162,7 @@ func newApp() *app {
 		selRow:      -1,
 		lastCell:    -1,
 		sort:        ui.SortOrder{Column: "ip"},
-		tableShare:  60,
+		cardWidth:   cardWidthDefault,
 	}
 	a.tree.List = ui.ListState{Selected: &a.selRow, Sort: &a.sort}
 	a.pingList = ui.ListState{FollowEnd: true}

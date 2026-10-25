@@ -18,24 +18,29 @@ type treeKey struct {
 	Port int
 }
 
-// hostTreeColumns is the full set the tree shows beside the detail panel;
-// the narrower card keeps the essentials only, as the details of the rest
-// are in that panel anyway.
+// hostTreeColumns is the set the card shows while it has the room; the
+// narrower card keeps only what identifies a device, as the rest is in the
+// detail panel anyway.
+//
+// Every column is as wide as what it holds: an address, a MAC and a state
+// read the same however wide the window is, and host names and vendors are
+// short. The last column takes whatever room is left and shows nothing, so
+// a wide window leaves the table at its own width rather than stretching a
+// field over empty space.
 var (
-	// The host name takes the room left: it is the field that runs long,
-	// where a MAC address is always 17 figures and a vendor name fits a
-	// short column.
 	hostTreeColumns = []ui.TableColumn{
-		{Title: "IP 地址", ID: "ip", Width: 230, MinWidth: 200, Sortable: true},
-		{Title: "主机名", ID: "hostname", MinWidth: 140, Sortable: true},
-		{Title: "厂商", ID: "vendor", Width: 200, MinWidth: 140, Sortable: true},
-		{Title: "MAC 地址", ID: "mac", Width: 140, MinWidth: 120},
-		{Title: "状态", ID: "state", Width: 64, Sortable: true},
+		{Title: "IP 地址", ID: "ip", Width: 184, MinWidth: 168, Sortable: true},
+		{Title: "主机名", ID: "hostname", Width: 180, MinWidth: 116, Sortable: true},
+		{Title: "厂商", ID: "vendor", Width: 150, MinWidth: 116, Sortable: true},
+		{Title: "MAC 地址", ID: "mac", Width: 132, MinWidth: 120},
+		{Title: "状态", ID: "state", Width: 56, Sortable: true},
+		{Title: "", ID: "space", MinWidth: 0},
 	}
 	hostTreeColumnsNarrow = []ui.TableColumn{
-		{Title: "IP 地址", ID: "ip", Width: 230, MinWidth: 190, Sortable: true},
-		{Title: "主机名", ID: "hostname", MinWidth: 120, Sortable: true},
-		{Title: "状态", ID: "state", Width: 64, Sortable: true},
+		{Title: "IP 地址", ID: "ip", Width: 184, MinWidth: 168, Sortable: true},
+		{Title: "主机名", ID: "hostname", Width: 160, MinWidth: 100, Sortable: true},
+		{Title: "状态", ID: "state", Width: 56, Sortable: true},
+		{Title: "", ID: "space", MinWidth: 0},
 	}
 )
 
@@ -53,17 +58,28 @@ func (a *app) View(c *ui.Context) {
 	})
 }
 
-// body lays the workspace out as a modern app window: the host card
-// takes the room, the selected device's details sit in a panel at its
-// right, and the line between them drags.
+// The host card only needs the width of the columns that identify a
+// device; the rest of the window is better spent on the details beside it.
+const (
+	cardWidthDefault = 470
+	cardWidthMin     = 400
+	cardWidthMax     = 760
+)
+
+// body lays the workspace out as a modern app window: the host card takes
+// a width of its own, the selected device's details take the rest, and
+// the line between them drags.
 func (a *app) body(c *ui.Context, t *ui.Theme) {
 	ui.Column(c).Grow(1).Shrink(1).Padding(0, 16, 12, 16).Children(func() {
 		if !a.selIP.IsValid() {
 			a.workspaceCard(c, t).Fill()
 			return
 		}
-		a.tableShare = min(max(a.tableShare, 58), 76)
-		ui.SplitPercent(c, &a.tableShare, func() {
+		w, _ := c.Size()
+		// The card keeps its width, but leaves the panel its least and the
+		// card its own, so a small window squeezes the card first.
+		a.cardWidth = min(max(a.cardWidth, cardWidthMin), cardWidthMax, max(w-16-12-detailMinWidth, cardWidthMin))
+		ui.Split(c, &a.cardWidth, func() {
 			a.workspaceCard(c, t).Fill()
 		}, func() {
 			a.detailPanel(c, t).Fill()
@@ -71,9 +87,23 @@ func (a *app) body(c *ui.Context, t *ui.Theme) {
 	})
 }
 
+// detailMinWidth is the least room the detail panel takes well: its facts
+// and the actions beside them.
+const detailMinWidth = 380
+
+// cardWidth is the host card's width this frame: its own beside the
+// detail panel, the window less its margins otherwise.
+func cardWidth(c *ui.Context, a *app) float32 {
+	if a.selIP.IsValid() {
+		return a.cardWidth
+	}
+	w, _ := c.Size()
+	return w - 32
+}
+
 // workspaceCard holds the command bar and the host tree.
 func (a *app) workspaceCard(c *ui.Context, t *ui.Theme) ui.Element {
-	return ui.Column(c).MinWidth(360).Background(t.Surface).Border(1, cardBorder).
+	return ui.Column(c).Background(t.Surface).Border(1, cardBorder).
 		Radius(8).Shadow(0, 1, 4, 0, cardShadow).Clip().Children(func() {
 		a.commandBar(c, t)
 		ui.Divider(c).Shrink(0)
@@ -82,10 +112,10 @@ func (a *app) workspaceCard(c *ui.Context, t *ui.Theme) ui.Element {
 }
 
 // detailPanel is the right-hand panel for the selected device; the user
-// gives it more or less room by dragging the line between it and the
-// host card.
+// gives it more or less room by dragging the line between it and the host
+// card.
 func (a *app) detailPanel(c *ui.Context, t *ui.Theme) ui.Element {
-	return ui.Column(c).MinWidth(320).Background(t.Surface).Border(1, cardBorder).
+	return ui.Column(c).Background(t.Surface).Border(1, cardBorder).
 		Radius(8).Shadow(0, 1, 4, 0, cardShadow).Clip().Children(func() {
 		a.detail(c)
 	})
@@ -322,7 +352,7 @@ func (a *app) hostTree(c *ui.Context, t *ui.Theme, visible []model.Host) {
 	// Beside the detail panel the card keeps only what identifies a device;
 	// the rest of the columns go where they would be cut off.
 	cols := hostTreeColumns
-	if w, _ := c.Size(); a.selIP.IsValid() && (w-45)*a.tableShare/100 < 900 {
+	if cardWidth(c, a) < 600 {
 		cols = hostTreeColumnsNarrow
 	}
 	ui.OutlineTable(c, &a.tree, cols, roots, a.portBranches,
@@ -432,6 +462,7 @@ func (a *app) treeCell(c *ui.Context, col string, k treeKey) {
 		}
 		ui.Text(c, stateLabel(h.State)).FontSize(12).TextColor(t.TextMuted)
 	}
+	// "space" holds nothing: it is the room left over.
 }
 
 // stateDot is the status dot of a host row.
