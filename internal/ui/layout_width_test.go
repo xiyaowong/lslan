@@ -27,12 +27,12 @@ func TestDefaultWindowLayout(t *testing.T) {
 			ip := netip.MustParseAddr("192.168.3.1")
 			a.hosts[ip] = model.Host{IP: ip, State: model.StateOnline, Hostname: "router", MAC: "aa:bb:cc:dd:ee:ff"}
 			if selected {
-				a.autoScanned = map[netip.Addr]bool{ip: true}
+				a.ports[ip] = nil // the sweep asked already
 				a.selRow, a.selIP = 0, ip
 			}
 			tt.Frame()
 
-			for _, text := range []string{"开始扫描", "整个网段", "顺带扫描端口", "显示离线设备", ip.String()} {
+			for _, text := range []string{"开始扫描", "整个网段", "顺带扫描端口", "显示离线地址", ip.String()} {
 				r, ok := tt.Find(text)
 				if !ok {
 					t.Fatalf("%dx%d selected=%v: %q is missing", size.w, size.h, selected, text)

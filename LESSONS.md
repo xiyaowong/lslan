@@ -17,3 +17,6 @@
 - 窗口标题栏按钮随系统深色模式变白,固定浅色界面上就看不见 → `mygo.Theme.SetSource(mygo.ThemeLight)` 锁定外观,勿只改 ui.Theme
 - 列表选中行被主题 Accent "灌满",Fluent 要的是浅色底纹 → 建表时临时把 Accent 换成底纹色、AccentText 换成正文色,画完再还原
 - 状态栏被挤掉:窗口根列里 `Fill()` 的容器会和状态栏抢满高度 → 主内容用 `Grow(1).Shrink(1)`
+- 引擎每次上报 host 都会整体覆盖 `model.Host`,它不知道端口扫描 → 端口结果单独缓存(`a.ports[ip]`),只在开始扫描时清空
+- just 默认用 `sh`,Windows 上 `New-Item` 之类会 not found → justfile 顶部 `set windows-shell := ["pwsh", "-NoProfile", "-Command"]`
+- 防火墙/UAC 授权按 exe 路径记,`go build` 每次换临时目录就重新弹窗,无人值守点不了 → 用固定路径 `build/test/lslan-test.exe`(`just run`)

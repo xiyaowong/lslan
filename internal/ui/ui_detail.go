@@ -60,10 +60,11 @@ func (a *app) detailHeader(c *ui.Context, t *ui.Theme, h model.Host) {
 // detailInfo is the facts, a caption and its value a row, each with a
 // button copying the value for pasting elsewhere.
 func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
-	open := len(openPorts(h))
+	scanned := a.ports[h.IP]
+	open := len(openPorts(scanned))
 	ports := ""
-	if len(h.Ports) > 0 {
-		ports = fmt.Sprintf("%d 个开放 · 共 %d 个", open, len(h.Ports))
+	if len(scanned) > 0 {
+		ports = fmt.Sprintf("%d 个开放 · 共 %d 个", open, len(scanned))
 	}
 	seen := ""
 	if !h.LastSeen.IsZero() {
@@ -181,20 +182,23 @@ func section(c *ui.Context, t *ui.Theme, title, note string, rows func()) {
 }
 
 // portSection shows the selected host's port scan: a guide line before
-// the first scan, a spinner while it runs, then the open ports.
+// the first scan, a spinner while it runs, then the open ports. The
+// results come from the cache, so a sweep's probes and a manual scan show
+// the same list, and they stay as the user moves between hosts.
 func (a *app) portSection(c *ui.Context, t *ui.Theme, h model.Host) {
+	scanned, done := a.ports[h.IP]
 	switch {
-	case a.portIP == h.IP && a.portScanning:
+	case a.portProbing(h.IP):
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Shrink(0).Children(func() {
 			ui.Spinner(c)
 			ui.Text(c, "正在扫描端口…").FontSize(12).TextColor(t.TextMuted)
 		})
 	case a.portIP == h.IP && a.portErr != "":
 		ui.Text(c, "端口扫描没有完成，请稍后再试").FontSize(12).TextColor(t.Danger).Shrink(0)
-	case a.portIP == h.IP && len(a.portResults) > 0:
+	case done:
 		openCount := 0
 		var open []model.Port
-		for _, p := range sortedPorts(a.portResults) {
+		for _, p := range sortedPorts(scanned) {
 			if p.Open {
 				openCount++
 				open = append(open, p)
@@ -227,6 +231,15 @@ func (a *app) portSection(c *ui.Context, t *ui.Theme, h model.Host) {
 			ui.Text(c, "还没扫描过").FontSize(12).TextColor(t.TextMuted)
 		})
 	}
+}
+
+// portProbing reports whether the host's ports are being probed now, by
+// the sweep or by a scan the user asked for.
+func (a *app) portProbing(ip netip.Addr) bool {
+	if a.portScanning && a.portIP == ip {
+		return true
+	}
+	return a.sweepPending[ip]
 }
 
 // portRow is one port: the number, the service in plain words, its next
