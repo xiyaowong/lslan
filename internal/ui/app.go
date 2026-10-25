@@ -128,12 +128,13 @@ type app struct {
 	presetCache  []scan.Preset
 	portScanning bool
 	portIP       netip.Addr
-	portResults  []model.Port
 	portErr      string
 	portScroll   ui.ScrollState
 	// autoScanned holds the hosts this sweep already scanned as they were
-	// opened; a new sweep clears it.
-	autoScanned map[netip.Addr]bool
+	// opened; a new sweep clears it. sweepPending holds those the sweep is
+	// probing now, so their details can say so.
+	autoScanned  map[netip.Addr]bool
+	sweepPending map[netip.Addr]bool
 	// moreOpen shows the popover with the port presets beyond the common one.
 	moreOpen bool
 
@@ -397,6 +398,7 @@ func (a *app) startScan() {
 	a.autoScanned = nil
 	a.portGen++ // a sweep still probing ports is stale now
 	a.sweepLeft = 0
+	a.sweepPending = nil
 	a.selRow, a.selIP = -1, netip.Addr{}
 }
 
@@ -542,6 +544,10 @@ func (a *app) sweepPorts() {
 		return
 	}
 	a.sweepLeft = len(ips)
+	a.sweepPending = make(map[netip.Addr]bool, len(ips))
+	for _, ip := range ips {
+		a.sweepPending[ip] = true
+	}
 	a.portGen++
 	gen := a.portGen
 	preset := a.presets()[0]
@@ -560,6 +566,7 @@ func (a *app) sweepPorts() {
 						return
 					}
 					a.sweepLeft = max(a.sweepLeft-1, 0)
+					delete(a.sweepPending, ip)
 					if err != nil {
 						return
 					}
@@ -595,7 +602,6 @@ func (a *app) startPortScanPreset(ip netip.Addr, i int) {
 	ctx, cancel := context.WithCancel(context.Background())
 	a.portScanning = true
 	a.portIP = ip
-	a.portResults = nil
 	a.portErr = ""
 	go func() {
 		ports, err := a.scanPorts(ctx, ip, preset.Ports)
@@ -606,9 +612,8 @@ func (a *app) startPortScanPreset(ip netip.Addr, i int) {
 				a.portErr = "端口扫描没跑完，请稍后再试"
 				return
 			}
-			a.portResults = ports
-			// Write back so the table column and the detail facts see the
-			// results too; portResults only covers the selected host.
+			// The host holds the results, for the tree, the facts and the
+			// port list alike.
 			if h, ok := a.hosts[ip]; ok {
 				h.Ports = ports
 				a.hosts[ip] = h
