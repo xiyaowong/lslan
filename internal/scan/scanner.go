@@ -228,6 +228,22 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 		}
 	}
 
+	// Offline backfill: on a full, uncancelled pass, every probed address
+	// that never answered goes to the UI as an offline host, so the
+	// 显示离线 filter has rows to show.
+	if ctx.Err() == nil {
+		dataMu.Lock()
+		known := make(map[uint32]struct{}, len(hosts))
+		for k := range hosts {
+			known[k] = struct{}{}
+		}
+		dataMu.Unlock()
+		for _, h := range offlineBackfill(lo, hi, known) {
+			h := h
+			s.emit(ctx, Event{Kind: EventHost, Host: &h})
+		}
+	}
+
 	// Final pass: wait for the remaining lookups, re-emit every host
 	// with everything filled in, then the final progress.
 	names.wait()
@@ -283,6 +299,22 @@ func (h *hostnames) lookup(key uint32, ip netip.Addr, cb func(name string)) {
 
 // wait blocks until every in-flight lookup, and its callback, is done.
 func (h *hostnames) wait() { h.wg.Wait() }
+
+// offlineBackfill lists every address in [lo,hi] the sweep never found
+// responding, as an offline host each. It must be called only after the
+// sweep is done adding hosts.
+func offlineBackfill(lo, hi uint32, known map[uint32]struct{}) []model.Host {
+	out := make([]model.Host, 0, int(hi-lo)+1-len(known))
+	for key := lo; ; key++ {
+		if _, ok := known[key]; !ok {
+			out = append(out, model.Host{IP: addrFromUint32(key), State: model.StateOffline})
+		}
+		if key == hi {
+			break
+		}
+	}
+	return out
+}
 
 func progress(total int64, scanned, online *atomic.Int64) model.Progress {
 	return model.Progress{Scanned: int(scanned.Load()), Total: int(total), Online: int(online.Load())}

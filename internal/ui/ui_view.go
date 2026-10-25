@@ -54,7 +54,9 @@ func (a *app) body(c *ui.Context, t *ui.Theme) {
 			a.detail(c)
 		})
 	}
-	a.tableShare = max(a.tableShare, 50)
+	// The table keeps 35–80% of the split, so neither pane squeezes the
+	// other out (issue #21); the split itself enforces a minimum pane.
+	a.tableShare = min(max(a.tableShare, 35), 80)
 	ui.SplitVerticalPercent(c, &a.tableShare, tablePane, detailPane).Fill()
 }
 
@@ -79,16 +81,6 @@ func (a *app) toolbar(c *ui.Context) {
 
 		ui.Box(c).Grow(1)
 
-		hasSel := a.selIP.IsValid()
-		copyBtn := ui.Button(c, "复制 IP").Disabled(!hasSel)
-		if hasSel && copyBtn.Clicked() {
-			c.WriteClipboard(a.selIP.String())
-		}
-		online := a.onlineCount()
-		copyAll := ui.Button(c, "复制在线 IP").Disabled(online == 0)
-		if online > 0 && copyAll.Clicked() {
-			c.WriteClipboard(a.onlineIPs())
-		}
 		if a.scanning {
 			if ui.Button(c, "取消扫描").Clicked() {
 				a.scanner.Cancel()
@@ -201,27 +193,52 @@ func (a *app) prevEditable(i int) int {
 	return -1
 }
 
-// statusBar sits at the bottom: tallies, scan progress, errors, filters.
+// statusBar sits at the bottom, outside the table/detail split, so no
+// pane drag can push it out of the window: tallies as segments, the scan
+// progress as a thin bar with its percent, errors, the offline filter.
 func (a *app) statusBar(c *ui.Context) {
 	t := c.Theme()
 	ui.Divider(c).Shrink(0)
-	ui.Row(c).Height(26).Padding(0, 12).Gap(12).AlignItems(ui.Center).Shrink(0).Children(func() {
-		ui.Textf(c, "在线 %d · 已发现 %d · 总数 %d", a.onlineCount(), len(a.hosts), a.progress.Total).
-			FontSize(12).TextColor(t.TextMuted)
+	ui.Row(c).Height(34).Padding(0, 12).Gap(12).AlignItems(ui.Center).Shrink(0).Children(func() {
+		a.stat(c, "在线", a.onlineCount(), true)
+		a.vsep(c, t)
+		a.stat(c, "已发现", a.discoveredCount(), false)
+		a.vsep(c, t)
+		a.stat(c, "总数", a.progress.Total, false)
 		if a.scanning {
+			a.vsep(c, t)
 			pct := 0.0
 			if a.progress.Total > 0 {
 				pct = float64(a.progress.Scanned) / float64(a.progress.Total)
 			}
-			ui.Progress(c, pct).Width(160)
-			ui.Textf(c, "%d / %d", a.progress.Scanned, a.progress.Total).FontSize(12).TextColor(t.TextMuted)
+			ui.Progress(c, pct).Width(180).Height(4).Shrink(0)
+			ui.Textf(c, "%.0f%%", pct*100).Font("monospace").FontSize(12).FontWeight(600)
 		}
 		if a.scanErr != "" {
+			a.vsep(c, t)
 			ui.Text(c, a.scanErr).FontSize(12).TextColor(t.Danger)
 		}
 		ui.Box(c).Grow(1)
 		ui.Toggle(c, &a.showOffline, "显示离线").FontSize(12)
 	})
+}
+
+// stat is one tally segment: an optional dot, a muted label, then the
+// number, bold and equal-width so digits do not jitter.
+func (a *app) stat(c *ui.Context, label string, n int, dot bool) {
+	t := c.Theme()
+	ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
+		if dot {
+			ui.Box(c).Size(8, 8).Radius(4).Background(t.Success).Shrink(0)
+		}
+		ui.Text(c, label).FontSize(12).TextColor(t.TextMuted)
+		ui.Textf(c, "%d", n).Font("monospace").FontSize(12).FontWeight(600)
+	})
+}
+
+// vsep is the thin vertical line between the status bar's segments.
+func (a *app) vsep(c *ui.Context, t *ui.Theme) {
+	ui.Box(c).Size(1, 14).Background(t.Border).Shrink(0)
 }
 
 func (a *app) hostTable(c *ui.Context) {
@@ -241,6 +258,7 @@ func (a *app) hostTable(c *ui.Context) {
 
 func (a *app) hostCell(c *ui.Context, h model.Host, col int) {
 	t := c.Theme()
+	offline := h.State == model.StateOffline
 	switch col {
 	case 0:
 		dotColor := t.Border
@@ -252,18 +270,26 @@ func (a *app) hostCell(c *ui.Context, h model.Host, col int) {
 		}
 		ui.Box(c).Size(9, 9).Radius(4.5).Background(dotColor).Shrink(0)
 	case 1:
-		ui.Textf(c, "%d", h.LastOctet())
+		ui.Textf(c, "%d", h.LastOctet()).TextColor(cellText(t, offline))
 	case 2:
-		ui.Text(c, h.IP.String()).Font("monospace")
+		ui.Text(c, h.IP.String()).Font("monospace").TextColor(cellText(t, offline))
 	case 3:
-		ui.Text(c, orDash(h.Vendor)).SingleLine()
+		ui.Text(c, orDash(h.Vendor)).SingleLine().TextColor(cellText(t, offline))
 	case 4:
-		ui.Text(c, orDash(h.MAC)).Font("monospace")
+		ui.Text(c, orDash(h.MAC)).Font("monospace").TextColor(cellText(t, offline))
 	case 5:
-		ui.Text(c, orDash(h.Hostname)).SingleLine()
+		ui.Text(c, orDash(h.Hostname)).SingleLine().TextColor(cellText(t, offline))
 	case 6:
 		ui.Text(c, portsSummary(h.Ports)).SingleLine().TextColor(t.TextMuted)
 	}
+}
+
+// cellText grays an offline row's text down.
+func cellText(t *ui.Theme, offline bool) ui.Color {
+	if offline {
+		return t.TextMuted
+	}
+	return t.Text
 }
 
 func orDash(s string) string {
