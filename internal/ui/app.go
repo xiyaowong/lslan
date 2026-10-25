@@ -61,6 +61,7 @@ type app struct {
 	portPresets func() []scan.Preset
 	scanPorts   func(ctx context.Context, ip netip.Addr, ports []int) ([]model.Port, error)
 	startPingFn func(ctx context.Context, ip netip.Addr) (pingSessionIface, error)
+	newPingTerm func() (pingTerminalIface, error)
 
 	// win is nil in tests, where dispatch queues onto pending, drained at
 	// the view's start (goroutine updates must not touch the test goroutine).
@@ -91,13 +92,19 @@ type app struct {
 	selRow      int
 	selIP       netip.Addr
 
-	// Ping state; pingGen drops samples of a stopped session.
+	// detailHeight is the split's lower pane (detail panel), draggable.
+	detailHeight float32
+
+	// Ping state; pingGen drops samples of a stopped session. pingTerm is
+	// the terminal plugin view of the session, nil when it could not be
+	// created (the plain line list stands in).
 	pingGen    int
 	pingCancel context.CancelFunc
 	pingIP     netip.Addr
 	pingLines  []string
 	pingStats  pingStats
 	pingList   ui.ListState
+	pingTerm   pingTerminalIface
 
 	// Port scan state.
 	presetNames  []string
@@ -120,9 +127,10 @@ func newApp() *app {
 		startPingFn: func(ctx context.Context, ip netip.Addr) (pingSessionIface, error) {
 			return scan.StartPing(ctx, ip)
 		},
-		hosts:  map[netip.Addr]model.Host{},
-		selRow: -1,
-		sort:   ui.SortOrder{Column: "ip"},
+		newPingTerm: newTerminal,
+		hosts:       map[netip.Addr]model.Host{},
+		selRow:      -1,
+		sort:        ui.SortOrder{Column: "ip"},
 	}
 	a.tableState = ui.ListState{Selected: &a.selRow, Sort: &a.sort}
 	a.pingList = ui.ListState{FollowEnd: true}
@@ -158,6 +166,7 @@ func NewApp() *app { return newApp() }
 func (a *app) AttachWindow(opts mygo.WindowOptions) {
 	opts.Content = ui.View(a.View)
 	a.win = mygo.NewWindow(opts)
+	a.win.OnClosed(func() { a.stopPing() })
 	go a.loadNICs()
 }
 
@@ -305,15 +314,18 @@ func (a *app) applyEvent(ev scan.Event) {
 }
 
 // stopPing ends the current session; its in-flight samples are dropped by
-// pingGen.
+// pingGen. Safe to call with no session running.
 func (a *app) stopPing() {
-	if a.pingCancel == nil {
-		return
-	}
 	a.pingGen++
-	cancel := a.pingCancel
-	a.pingCancel = nil
-	cancel()
+	if a.pingCancel != nil {
+		cancel := a.pingCancel
+		a.pingCancel = nil
+		cancel()
+	}
+	if a.pingTerm != nil {
+		a.pingTerm.close()
+		a.pingTerm = nil
+	}
 }
 
 // startPing pings ip, stopping any session still running.
@@ -326,9 +338,13 @@ func (a *app) startPing(ip netip.Addr) {
 	a.pingIP = ip
 	a.pingLines = nil
 	a.pingStats = pingStats{}
+	if term, err := a.newPingTerm(); err == nil {
+		a.pingTerm = term
+		term.feed("正在 Ping "+ip.String()+":", true)
+	}
 	sess, err := a.startPingFn(ctx, ip)
 	if err != nil {
-		a.pingLines = append(a.pingLines, "启动失败: "+err.Error())
+		a.feedPing("启动失败: "+err.Error(), false)
 		a.pingCancel = nil
 		cancel()
 		return
@@ -353,15 +369,23 @@ func (a *app) startPing(ip netip.Addr) {
 func (a *app) applyPingSample(s model.PingSample) {
 	st := &a.pingStats
 	st.sent++
-	line := "请求超时。"
+	line, ok := "请求超时。", false
 	if s.OK {
 		st.recv++
 		st.rttTotal += s.RTT
-		line = fmt.Sprintf("来自 %s: 字节=32 时间=%.1fms TTL=%d", a.pingIP, s.RTT.Seconds()*1000, s.TTL)
+		line, ok = fmt.Sprintf("来自 %s: 字节=32 时间=%.1fms TTL=%d", a.pingIP, s.RTT.Seconds()*1000, s.TTL), true
 	}
 	a.pingLines = append(a.pingLines, line)
 	if len(a.pingLines) > 400 {
 		a.pingLines = append([]string(nil), a.pingLines[len(a.pingLines)-300:]...)
+	}
+	a.feedPing(line, ok)
+}
+
+// feedPing sends one output line to the terminal, when there is one.
+func (a *app) feedPing(line string, ok bool) {
+	if a.pingTerm != nil {
+		a.pingTerm.feed(line, ok)
 	}
 }
 

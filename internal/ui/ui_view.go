@@ -10,35 +10,57 @@ import (
 )
 
 var hostTableColumns = []ui.TableColumn{
-	{Title: "状态", ID: "state", Width: 46, Sortable: true},
-	{Title: "主机号", ID: "host", Width: 56, Align: ui.End, Sortable: true},
-	{Title: "IP", ID: "ip", Width: 118, Sortable: true},
+	{Title: "状态", ID: "state", Width: 52, Sortable: true},
+	{Title: "主机号", ID: "host", Width: 66, Align: ui.End, Sortable: true},
+	{Title: "IP", ID: "ip", Width: 148, Sortable: true},
 	{Title: "厂商", ID: "vendor", Width: 130, Sortable: true},
-	{Title: "MAC", ID: "mac", Width: 138},
+	{Title: "MAC", ID: "mac", Width: 158},
 	{Title: "主机名", ID: "hostname", Sortable: true},
-	{Title: "开放端口", ID: "ports", Width: 110},
+	{Title: "开放端口", ID: "ports", Width: 104},
 }
 
-// View rebuilds the whole interface each frame: toolbar, status line,
-// host table, detail panel.
+// View rebuilds the whole interface each frame: title bar, toolbar, the
+// table (split from the detail panel when a host is selected), status bar.
 func (a *app) View(c *ui.Context) {
+	t := appTheme()
+	c.SetTheme(t)
 	a.runPending()
 	a.presets()
 	ui.Column(c).Fill().Children(func() {
+		a.titleBar(c)
 		a.toolbar(c)
-		a.statusLine(c)
-		a.hostTable(c)
-		a.detail(c)
+		a.body(c, t)
+		a.statusBar(c)
 	})
+}
+
+// body is the table pane, split from the detail pane once a host is
+// selected; the divider between them drags.
+func (a *app) body(c *ui.Context, t *ui.Theme) {
+	tablePane := func() {
+		ui.Column(c).Fill().Background(t.Surface).Children(func() {
+			a.hostTable(c)
+		})
+	}
+	if !a.selIP.IsValid() {
+		tablePane()
+		return
+	}
+	detailPane := func() {
+		ui.Column(c).Fill().Background(t.Surface).Children(func() {
+			a.detail(c)
+		})
+	}
+	ui.SplitVertical(c, &a.detailHeight, tablePane, detailPane).Fill()
 }
 
 func (a *app) toolbar(c *ui.Context) {
 	t := c.Theme()
-	ui.Row(c).Padding(10, 12).Gap(8).AlignItems(ui.Center).Shrink(0).Children(func() {
+	ui.Row(c).Padding(8, 12).Gap(8).AlignItems(ui.Center).Shrink(0).Children(func() {
 		ui.Text(c, "网卡").TextColor(t.TextMuted)
 		switch {
 		case len(a.nicOptions) > 0:
-			sel := ui.Select(c, &a.nicSel, a.nicOptions).Width(220).Label("网卡")
+			sel := ui.Select(c, &a.nicSel, a.nicOptions).Width(190).Label("网卡")
 			if sel.Changed() {
 				if i := slices.Index(a.nicOptions, a.nicSel); i >= 0 {
 					a.nicIdx = i
@@ -50,10 +72,10 @@ func (a *app) toolbar(c *ui.Context) {
 		default:
 			ui.Text(c, "未找到可用网卡").TextColor(t.Danger)
 		}
-		ui.Text(c, "开始").TextColor(t.TextMuted)
-		ui.TextInput(c, &a.startIP).Label("开始 IP").Width(116)
-		ui.Text(c, "结束").TextColor(t.TextMuted)
-		ui.TextInput(c, &a.endIP).Label("结束 IP").Width(116)
+		ui.Text(c, "范围").TextColor(t.TextMuted)
+		ui.TextInput(c, &a.startIP).Label("开始 IP").Width(100)
+		ui.Text(c, "–").TextColor(t.TextMuted)
+		ui.TextInput(c, &a.endIP).Label("结束 IP").Width(100)
 
 		ui.Box(c).Grow(1)
 
@@ -77,30 +99,31 @@ func (a *app) toolbar(c *ui.Context) {
 	})
 }
 
-func (a *app) statusLine(c *ui.Context) {
+// statusBar sits at the bottom: tallies, scan progress, errors, filters.
+func (a *app) statusBar(c *ui.Context) {
 	t := c.Theme()
-	ui.Row(c).Padding(0, 12).Gap(12).AlignItems(ui.Center).Shrink(0).Children(func() {
+	ui.Divider(c).Shrink(0)
+	ui.Row(c).Height(26).Padding(0, 12).Gap(12).AlignItems(ui.Center).Shrink(0).Children(func() {
 		ui.Textf(c, "在线 %d · 已发现 %d · 总数 %d", a.onlineCount(), len(a.hosts), a.progress.Total).
-			TextColor(t.TextMuted)
+			FontSize(12).TextColor(t.TextMuted)
 		if a.scanning {
 			pct := 0.0
 			if a.progress.Total > 0 {
 				pct = float64(a.progress.Scanned) / float64(a.progress.Total)
 			}
 			ui.Progress(c, pct).Width(160)
-			ui.Textf(c, "%d / %d", a.progress.Scanned, a.progress.Total).TextColor(t.TextMuted)
+			ui.Textf(c, "%d / %d", a.progress.Scanned, a.progress.Total).FontSize(12).TextColor(t.TextMuted)
 		}
 		if a.scanErr != "" {
-			ui.Text(c, a.scanErr).TextColor(t.Danger)
-		}
-		if ui.Toggle(c, &a.showOffline, "显示离线").Changed() {
-			a.syncSelection(nil)
+			ui.Text(c, a.scanErr).FontSize(12).TextColor(t.Danger)
 		}
 		if start, end, ok := a.parseRange(); ok {
 			if n, _ := rangeCount(start, end); n > 256 {
-				ui.Textf(c, "范围共 %d 个地址，建议限制在一个 C 段以内", n).TextColor(t.TextMuted)
+				ui.Textf(c, "范围共 %d 个地址，建议限制在一个 C 段以内", n).FontSize(12).TextColor(t.TextMuted)
 			}
 		}
+		ui.Box(c).Grow(1)
+		ui.Toggle(c, &a.showOffline, "显示离线").FontSize(12)
 	})
 }
 
@@ -117,14 +140,15 @@ func (a *app) hostTable(c *ui.Context) {
 }
 
 func (a *app) hostCell(c *ui.Context, h model.Host, col int) {
+	t := c.Theme()
 	switch col {
 	case 0:
-		dotColor := c.Theme().Border
+		dotColor := t.Border
 		switch h.State {
 		case model.StateOnline:
-			dotColor = c.Theme().Success
+			dotColor = t.Success
 		case model.StateOffline:
-			dotColor = c.Theme().TextMuted
+			dotColor = t.TextMuted
 		}
 		ui.Box(c).Size(9, 9).Radius(4.5).Background(dotColor).Shrink(0)
 	case 1:
@@ -138,7 +162,7 @@ func (a *app) hostCell(c *ui.Context, h model.Host, col int) {
 	case 5:
 		ui.Text(c, orDash(h.Hostname)).SingleLine()
 	case 6:
-		ui.Text(c, portsSummary(h.Ports)).SingleLine().TextColor(c.Theme().TextMuted)
+		ui.Text(c, portsSummary(h.Ports)).SingleLine().TextColor(t.TextMuted)
 	}
 }
 
