@@ -26,14 +26,14 @@ var (
 	// where a MAC address is always 17 figures and a vendor name fits a
 	// short column.
 	hostTreeColumns = []ui.TableColumn{
-		{Title: "设备", ID: "ip", Width: 230, MinWidth: 200, Sortable: true},
+		{Title: "IP 地址", ID: "ip", Width: 230, MinWidth: 200, Sortable: true},
 		{Title: "主机名", ID: "hostname", MinWidth: 140, Sortable: true},
 		{Title: "厂商", ID: "vendor", Width: 200, MinWidth: 140, Sortable: true},
 		{Title: "MAC 地址", ID: "mac", Width: 140, MinWidth: 120},
 		{Title: "状态", ID: "state", Width: 64, Sortable: true},
 	}
 	hostTreeColumnsNarrow = []ui.TableColumn{
-		{Title: "设备", ID: "ip", Width: 230, MinWidth: 190, Sortable: true},
+		{Title: "IP 地址", ID: "ip", Width: 230, MinWidth: 190, Sortable: true},
 		{Title: "主机名", ID: "hostname", MinWidth: 120, Sortable: true},
 		{Title: "状态", ID: "state", Width: 64, Sortable: true},
 	}
@@ -116,7 +116,7 @@ func (a *app) commandBar(c *ui.Context, t *ui.Theme) {
 			}
 			ui.Box(c).Grow(1)
 			ui.Checkbox(c, &a.withPorts, "顺带扫描端口").FontSize(12).
-				Tooltip("扫描时一并查看在线设备开放的端口")
+				Tooltip("扫描时一并查看在线地址开放的端口")
 			if a.scanning {
 				if ui.Button(c, "取消扫描").Clicked() {
 					a.scanner.Cancel()
@@ -156,35 +156,37 @@ func (a *app) rangeBar(c *ui.Context, t *ui.Theme) {
 }
 
 // ipField is one field holding both addresses: eight octet cells with
-// dots between the octets and a dash between the addresses.
+// dots between the octets, and 至 between the two addresses, which reads
+// as the span it is where a dash reads as a minus.
 func (a *app) ipField(c *ui.Context, t *ui.Theme) {
-	ui.Row(c).Gap(1).AlignItems(ui.Center).Padding(0, 10).Height(34).
+	ui.Row(c).Gap(1).AlignItems(ui.Center).Padding(0, 12).Height(34).
 		Radius(t.Radius).Border(1, t.Border).Background(t.Surface).Shrink(0).Children(func() {
 		for i := range 8 {
 			if i == 4 {
-				ui.Text(c, "–").FontSize(13).TextColor(t.TextMuted).MarginX(3)
+				ui.Text(c, "至").FontSize(12).TextColor(t.TextMuted).MarginX(8).Shrink(0)
 			} else if i%4 != 0 {
-				ui.Text(c, ".").FontSize(13).TextColor(t.TextMuted)
+				ui.Text(c, ".").FontSize(13).TextColor(t.TextMuted).Shrink(0)
 			}
 			a.ipCell(c, t, i)
 		}
 	})
 }
 
-// ipCell builds one octet cell: figures in equal width, right-aligned. A
-// locked cell shows a network octet of the NIC, disabled and grayed. In
+// ipCell builds one octet cell: figures in equal width, centered so a
+// short octet sits in the middle of its cell rather than hugging an edge.
+// A locked cell shows a network octet of the NIC, disabled and grayed. In
 // an editable cell the third digit moves on to the next one, and
 // Backspace on an empty one goes back a cell; the moves land through
 // a.focusCell, whose wish ipCell picks up as it builds.
 func (a *app) ipCell(c *ui.Context, t *ui.Theme, i int) {
 	if a.cellLocked(i) {
-		ui.TextInputBase(c, &a.ipCells[i]).Width(24).FontSize(13).FontFeatures("tnum").
-			TextAlign(ui.End).Disabled(true).TextColor(t.TextMuted).
+		ui.TextInputBase(c, &a.ipCells[i]).Width(26).FontSize(13).FontFeatures("tnum").
+			TextAlign(ui.Center).Disabled(true).TextColor(t.TextMuted).
 			Label("IP 第 " + strconv.Itoa(i+1) + " 段（网段，自动）")
 		return
 	}
-	cell := ui.TextInputBase(c, &a.ipCells[i]).Width(24).FontSize(13).FontFeatures("tnum").
-		TextAlign(ui.End).Padding(2, 0).Label("IP 第 " + strconv.Itoa(i+1) + " 段")
+	cell := ui.TextInputBase(c, &a.ipCells[i]).Width(26).FontSize(13).FontFeatures("tnum").
+		TextAlign(ui.Center).Padding(2, 0).Label("IP 第 " + strconv.Itoa(i+1) + " 段")
 	cell.OnTextKey(func(k ui.TextKey) bool {
 		if k.Key == ui.KeyBackspace && k.Mods == 0 && k.Text() == "" {
 			// Empty, the key would do nothing; take it as a step back.
@@ -253,14 +255,14 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 				FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted)
 		} else if a.sweepLeft > 0 {
 			ui.Spinner(c)
-			ui.Textf(c, "正在查看 %d 台设备的端口", a.sweepLeft).
+			ui.Textf(c, "正在查看 %d 个地址的端口", a.sweepLeft).
 				FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted)
 		}
 		if a.scanErr != "" {
 			ui.Text(c, a.scanErr).FontSize(12).TextColor(t.Danger).SingleLine()
 		}
 		ui.Box(c).Grow(1)
-		ui.Checkbox(c, &a.showOffline, "显示离线设备").FontSize(12)
+		ui.Checkbox(c, &a.showOffline, "显示离线地址").FontSize(12)
 	})
 }
 
@@ -293,13 +295,13 @@ func (a *app) emptyTable(c *ui.Context, t *ui.Theme, hidden bool) {
 		switch {
 		case a.scanning:
 			ui.Spinner(c)
-			ui.Text(c, "正在查找设备…").FontSize(13).TextColor(t.TextMuted)
+			ui.Text(c, "正在扫描地址…").FontSize(13).TextColor(t.TextMuted)
 		case hidden:
-			ui.Text(c, "现在没有在线的设备").FontSize(15).FontWeight(600)
-			ui.Text(c, "打开右下角的「显示离线设备」，可以看到上次扫描过的设备").FontSize(13).TextColor(t.TextMuted)
+			ui.Text(c, "这个范围里没有在线的地址").FontSize(15).FontWeight(600)
+			ui.Text(c, "打开右下角的「显示离线地址」，可以看到上次扫描过的地址").FontSize(13).TextColor(t.TextMuted)
 		default:
-			ui.Text(c, "还没有找到设备").FontSize(15).FontWeight(600)
-			ui.Text(c, "点右上角的「开始扫描」，查找同一网络里的设备").FontSize(13).TextColor(t.TextMuted)
+			ui.Text(c, "还没有扫描").FontSize(15).FontWeight(600)
+			ui.Text(c, "点右上角的「开始扫描」，检查这个范围里哪些地址在线").FontSize(13).TextColor(t.TextMuted)
 		}
 	})
 }
