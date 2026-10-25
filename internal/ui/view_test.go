@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"net/netip"
+	"slices"
 	"testing"
 	"time"
 
@@ -111,4 +112,57 @@ func TestPing(t *testing.T) {
 		t.Error("pingTerm not cleared on stop")
 	}
 	tt.Frame()
+}
+
+// TestRowContextMenu right-clicks a row: the menu opens with the row's
+// actions, right-clicking selects the row, and choosing an item acts on
+// the row right-clicked.
+func TestRowContextMenu(t *testing.T) {
+	a := newApp()
+	a.detailHeight = 300 // keep the table pane visible beside the detail
+	tt := ui.NewTester(a.View, 1000, 680)
+
+	ip1 := netip.MustParseAddr("192.168.1.5")
+	ip2 := netip.MustParseAddr("192.168.1.6")
+	a.hosts[ip1] = model.Host{IP: ip1, State: model.StateOnline, MAC: "AA:BB"}
+	a.hosts[ip2] = model.Host{IP: ip2, State: model.StateOnline}
+	// Select the second row, then right-click the first's IP cell.
+	a.selRow, a.selIP = 1, ip2
+	tt.Frame()
+	r, ok := tt.Find(ip1.String())
+	if !ok {
+		t.Fatalf("row of %s not found", ip1)
+	}
+	tt.RightClickAt(r.X+2, r.Y+r.H/2)
+	tt.Frame()
+
+	want := []string{"复制 IP", "复制 MAC", "-", "Ping", "端口扫描", "浏览器打开"}
+	if got := tt.Menu(); !slices.Equal(got, want) {
+		t.Errorf("menu = %q, want %q", got, want)
+	}
+	if a.selIP != ip1 {
+		t.Errorf("right-click selection = %s, want %s", a.selIP, ip1)
+	}
+
+	// A host without a MAC has that item grayed out, not hidden.
+	tt.CloseMenu()
+	tt.Frame()
+	r, ok = tt.Find(ip2.String())
+	if !ok {
+		t.Fatalf("row of %s not found", ip2)
+	}
+	tt.RightClickAt(r.X+2, r.Y+r.H/2)
+	tt.Frame()
+	if got := tt.Menu(); !slices.Equal(got, want) {
+		t.Errorf("menu = %q, want %q", got, want)
+	}
+	if err := tt.ChooseMenuItem("复制 MAC"); err == nil {
+		t.Error("复制 MAC chosen though the host has no MAC")
+	}
+	if err := tt.ChooseMenuItem("复制 IP"); err != nil {
+		t.Fatalf("choose 复制 IP: %v", err)
+	}
+	if tt.Clipboard() != ip2.String() {
+		t.Errorf("clipboard = %q, want %q", tt.Clipboard(), ip2.String())
+	}
 }

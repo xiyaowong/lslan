@@ -26,6 +26,7 @@ func (a *app) View(c *ui.Context) {
 	c.SetTheme(t)
 	a.runPending()
 	a.presets()
+	a.runNextFrame(c)
 	ui.Column(c).Fill().Children(func() {
 		a.titleBar(c)
 		a.toolbar(c)
@@ -130,13 +131,16 @@ func (a *app) statusBar(c *ui.Context) {
 func (a *app) hostTable(c *ui.Context) {
 	visible := a.visibleHosts()
 	a.syncSelection(visible)
+	a.menuHosts = visible
 	// Ping follows the selection.
 	if a.pingCancel != nil && a.pingIP != a.selIP {
 		a.stopPing()
 	}
+	a.tableState.CellMenu = a.rowMenu
 	ui.Table(c, &a.tableState, hostTableColumns, len(visible), func(row, col int) {
 		a.hostCell(c, visible[row], col)
 	}).Grow(1)
+
 }
 
 func (a *app) hostCell(c *ui.Context, h model.Host, col int) {
