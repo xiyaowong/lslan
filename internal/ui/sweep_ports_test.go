@@ -75,10 +75,10 @@ func TestSweepPorts(t *testing.T) {
 	if n := calls.Load(); n != 1 {
 		t.Fatalf("probes = %d, want 1, the offline host skipped", n)
 	}
-	if got := a.hosts[online].Ports; len(got) != 1 || got[0].Number != 80 {
+	if got := a.ports[online]; len(got) != 1 || got[0].Number != 80 {
 		t.Errorf("ports of the online host = %v, want 80", got)
 	}
-	if !a.autoScanned[online] {
+	if _, done := a.ports[online]; !done {
 		t.Error("a swept host should not be probed again when its details open")
 	}
 }
@@ -94,12 +94,12 @@ func TestSweptPortsInDetail(t *testing.T) {
 	}
 	tt := ui.NewTester(a.View, 1240, 800)
 	ip := netip.MustParseAddr("192.168.1.5")
-	a.hosts[ip] = model.Host{IP: ip, State: model.StateOnline, Ports: []model.Port{
+	a.hosts[ip] = model.Host{IP: ip, State: model.StateOnline}
+	a.ports[ip] = []model.Port{ // the sweep did it
 		{Number: 80, Open: true, Service: "http"},
 		{Number: 445, Open: true, Service: "smb"},
 		{Number: 22, Open: false, Service: "ssh"},
-	}}
-	a.autoScanned = map[netip.Addr]bool{ip: true} // the sweep did it
+	}
 	tt.Frame()
 
 	a.selRow, a.selIP = 0, ip
@@ -116,5 +116,68 @@ func TestSweptPortsInDetail(t *testing.T) {
 	}
 	if tt.HasText("还没扫描过") {
 		t.Error("a swept host reads as never scanned")
+	}
+}
+
+// TestPortsSurviveHostUpdatesAndSwitching: the results of a port scan
+// stay as the engine reports the host again and as the user moves to
+// another host and back; only a new sweep clears them.
+func TestPortsSurviveHostUpdatesAndSwitching(t *testing.T) {
+	a := newApp()
+	a.listNICs = func() ([]model.NIC, error) {
+		return []model.NIC{{Name: "以太网", IP: netip.MustParseAddr("192.168.1.23"), PrefixLen: 24}}, nil
+	}
+	a.rangeForNIC = func(n model.NIC) (netip.Addr, netip.Addr) {
+		return netip.MustParseAddr("192.168.1.1"), netip.MustParseAddr("192.168.1.254")
+	}
+	a.newScanner = func() scannerIface { return &fakeScanner{} }
+	a.scanPorts = func(ctx context.Context, ip netip.Addr, ports []int) ([]model.Port, error) {
+		return []model.Port{{Number: 80, Open: true, Service: "http"}}, nil
+	}
+	tt := ui.NewTester(a.View, 1240, 800)
+	a.loadNICs()
+	ip, other := netip.MustParseAddr("192.168.1.5"), netip.MustParseAddr("192.168.1.6")
+	a.hosts[ip] = model.Host{IP: ip, State: model.StateOnline}
+	a.hosts[other] = model.Host{IP: other, State: model.StateOnline}
+	a.ports[ip] = []model.Port{{Number: 80, Open: true, Service: "http"}}
+	a.selRow, a.selIP = 0, ip
+	tt.Frame()
+
+	// A later sweep event for the same host carries no ports; they stay.
+	a.applyEvent(scan.Event{Kind: scan.EventHost, Host: &model.Host{IP: ip, State: model.StateOnline, Hostname: "router"}})
+	tt.Frame()
+	if !tt.HasText("80") {
+		t.Fatalf("ports lost to a host update, texts %q", tt.Texts())
+	}
+
+	// Looking at another host and coming back shows them again.
+	look := func(want netip.Addr) {
+		t.Helper()
+		for i := range a.tree.Rows() {
+			if k := a.tree.Item(i); k.IP == want && k.Port == 0 {
+				a.selRow, a.selIP = i, k.IP
+				break
+			}
+		}
+		tt.Frame()
+		// The scan the other host's details start lands before we leave.
+		deadline := time.Now().Add(time.Second)
+		for a.portScanning && time.Now().Before(deadline) {
+			a.runPending()
+			time.Sleep(time.Millisecond)
+		}
+		a.runPending()
+		tt.Frame()
+	}
+	look(other)
+	look(ip)
+	if !tt.HasText("80") {
+		t.Errorf("ports gone after switching hosts, texts %q", tt.Texts())
+	}
+
+	// A new sweep empties the cache.
+	a.startScan()
+	if len(a.ports) != 0 {
+		t.Errorf("a new sweep kept %d hosts' ports", len(a.ports))
 	}
 }

@@ -60,10 +60,11 @@ func (a *app) detailHeader(c *ui.Context, t *ui.Theme, h model.Host) {
 // detailInfo is the facts, a caption and its value a row, each with a
 // button copying the value for pasting elsewhere.
 func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
-	open := len(openPorts(h))
+	scanned := a.ports[h.IP]
+	open := len(openPorts(scanned))
 	ports := ""
-	if len(h.Ports) > 0 {
-		ports = fmt.Sprintf("%d 个开放 · 共 %d 个", open, len(h.Ports))
+	if len(scanned) > 0 {
+		ports = fmt.Sprintf("%d 个开放 · 共 %d 个", open, len(scanned))
 	}
 	seen := ""
 	if !h.LastSeen.IsZero() {
@@ -182,9 +183,10 @@ func section(c *ui.Context, t *ui.Theme, title, note string, rows func()) {
 
 // portSection shows the selected host's port scan: a guide line before
 // the first scan, a spinner while it runs, then the open ports. The
-// results are the host's own, so a sweep's probes and a manual scan show
-// the same list.
+// results come from the cache, so a sweep's probes and a manual scan show
+// the same list, and they stay as the user moves between hosts.
 func (a *app) portSection(c *ui.Context, t *ui.Theme, h model.Host) {
+	scanned, done := a.ports[h.IP]
 	switch {
 	case a.portProbing(h.IP):
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Shrink(0).Children(func() {
@@ -193,10 +195,10 @@ func (a *app) portSection(c *ui.Context, t *ui.Theme, h model.Host) {
 		})
 	case a.portIP == h.IP && a.portErr != "":
 		ui.Text(c, "端口扫描没有完成，请稍后再试").FontSize(12).TextColor(t.Danger).Shrink(0)
-	case len(h.Ports) > 0:
+	case done:
 		openCount := 0
 		var open []model.Port
-		for _, p := range sortedPorts(h.Ports) {
+		for _, p := range sortedPorts(scanned) {
 			if p.Open {
 				openCount++
 				open = append(open, p)
