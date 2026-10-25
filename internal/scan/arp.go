@@ -5,6 +5,8 @@ package scan
 import (
 	"encoding/binary"
 	"net/netip"
+	"sync"
+	"time"
 	"unsafe"
 )
 
@@ -54,4 +56,39 @@ func readARPTable() map[netip.Addr]string {
 		out[netip.AddrFrom4(ipb)] = formatMAC(row.PhysAddr[:row.PhysAddrLen])
 	}
 	return out
+}
+
+// arpCache is a time-windowed snapshot of the system ARP cache shared
+// by all sweep workers: the table is re-read at most once per window
+// no matter how many workers ask, keeping the GetIpNetTable call rate
+// flat instead of one call per probe.
+type arpCache struct {
+	read   func() map[netip.Addr]string
+	window time.Duration
+	now    func() time.Time
+
+	mu      sync.Mutex
+	table   map[netip.Addr]string
+	expires time.Time
+}
+
+func newARPCache(window time.Duration) *arpCache {
+	return &arpCache{read: readARPTable, window: window, now: time.Now}
+}
+
+// mac returns the hardware address for ip, refreshing the snapshot
+// when the window has lapsed. ok is false when the snapshot holds no
+// entry for ip; a failed table read is cached as empty for the window.
+func (c *arpCache) mac(ip netip.Addr) (string, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.table == nil || !c.expires.After(c.now()) {
+		c.table = c.read()
+		if c.table == nil {
+			c.table = map[netip.Addr]string{}
+		}
+		c.expires = c.now().Add(c.window)
+	}
+	mac, ok := c.table[ip]
+	return mac, ok
 }

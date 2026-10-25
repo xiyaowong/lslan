@@ -21,6 +21,7 @@ const (
 	hostnameWorkers = 16
 	hostnameTimeout = 1500 * time.Millisecond
 	arpProbeTimeout = 300 * time.Millisecond
+	arpCacheWindow  = 500 * time.Millisecond
 	eventBuf        = 1024
 )
 
@@ -112,11 +113,48 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 		gateway = be32(nic.Gateway)
 	}
 
+	// Streaming path: one shared ARP snapshot rate-limits the table
+	// reads across all workers; hostname lookups run per discovered
+	// host under a bounded semaphore and re-emit as each name lands.
+	arp := newARPCache(arpCacheWindow)
+	names := newHostnames(ctx)
+
 	hosts := make(map[uint32]*model.Host)
-	macs := make(map[uint32]string)
-	var dataMu sync.Mutex // guards hosts and macs
+	var dataMu sync.Mutex // guards hosts
 	var scanned, online atomic.Int64
 	var next atomic.Int64
+
+	// snapshotHost copies a host record so events never alias live state.
+	snapshotHost := func(key uint32) *model.Host {
+		dataMu.Lock()
+		h := *hosts[key]
+		dataMu.Unlock()
+		return &h
+	}
+
+	// enrichHost stores a freshly discovered host, emits it, then
+	// starts its hostname lookup: the row lights up with MAC/vendor at
+	// once, then updates in place when the name resolves. Events carry
+	// snapshots, never the live record — the lookup callback mutates it.
+	//
+	// Called at most once per key: workers see disjoint addresses and
+	// the consistency pass only for keys not stored here yet.
+	enrichHost := func(key uint32, h *model.Host) {
+		dataMu.Lock()
+		hosts[key] = h
+		dataMu.Unlock()
+		online.Add(1)
+		s.emit(ctx, Event{Kind: EventHost, Host: snapshotHost(key)})
+		names.lookup(key, addrFromUint32(key), func(name string) {
+			if name == "" {
+				return
+			}
+			dataMu.Lock()
+			hosts[key].Hostname = name
+			dataMu.Unlock()
+			s.emit(ctx, Event{Kind: EventHost, Host: snapshotHost(key)})
+		})
+	}
 
 	var wg sync.WaitGroup
 	for w := 0; w < sweepWorkers; w++ {
@@ -130,15 +168,19 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 				}
 				ip := addrFromUint32(lo + uint32(i))
 				if probeHost(ip) {
+					key := be32(ip)
 					h := &model.Host{IP: ip, State: model.StateOnline, LastSeen: time.Now()}
-					if gatewayValid && be32(ip) == gateway {
+					if gatewayValid && key == gateway {
 						h.Gateway = true
 					}
-					dataMu.Lock()
-					hosts[be32(ip)] = h
-					dataMu.Unlock()
-					online.Add(1)
-					s.emit(ctx, Event{Kind: EventHost, Host: h})
+					// The probe put the host into the ARP cache; pick
+					// up its MAC right away so the first event already
+					// carries vendor.
+					if mac, ok := arp.mac(ip); ok {
+						h.MAC = mac
+						h.Vendor = OUIVendor(mac)
+					}
+					enrichHost(key, h)
 				}
 				scanned.Add(1)
 				s.emit(ctx, Event{Kind: EventProgress, Progress: progress(total, &scanned, &online)})
@@ -147,11 +189,12 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 	}
 	wg.Wait()
 
-	// ARP enrichment. A host the ICMP burst left in the ARP cache but
-	// that did not answer ping gets a quick TCP liveness check (catches
-	// devices that block ICMP); cache entries may be a few minutes
-	// stale, so a device gone dark just before a resweep can leak
-	// through as online.
+	// Consistency pass. Addresses the ICMP burst left in the ARP cache
+	// but that did not answer ping get a quick TCP liveness check
+	// (catches devices that block ICMP; cache entries may be a few
+	// minutes stale, so a device gone dark just before a resweep can
+	// leak through as online). Known hosts missing a MAC are backfilled
+	// from a fresh table read.
 	for addr, mac := range readARPTable() {
 		if !addr.Is4() {
 			continue
@@ -161,12 +204,16 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 			continue
 		}
 		dataMu.Lock()
-		_, known := hosts[key]
-		dataMu.Unlock()
+		h, known := hosts[key]
 		if known {
-			macs[key] = mac
+			if h.MAC == "" {
+				h.MAC = mac
+				h.Vendor = OUIVendor(mac)
+			}
+			dataMu.Unlock()
 			continue
 		}
+		dataMu.Unlock()
 		if ctx.Err() != nil {
 			break
 		}
@@ -175,65 +222,67 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 			if gatewayValid && key == gateway {
 				h.Gateway = true
 			}
-			dataMu.Lock()
-			hosts[key] = h
-			macs[key] = mac
-			dataMu.Unlock()
-			online.Add(1)
-			s.emit(ctx, Event{Kind: EventHost, Host: h})
+			h.MAC = mac
+			h.Vendor = OUIVendor(mac)
+			enrichHost(key, h)
 		}
 	}
 
-	// Hostname enrichment, bounded-concurrency reverse DNS.
-	names := make(map[uint32]string, len(hosts))
-	var namesMu sync.Mutex
-	var hwg sync.WaitGroup
-	sem := make(chan struct{}, hostnameWorkers)
+	// Final pass: wait for the remaining lookups, re-emit every host
+	// with everything filled in, then the final progress.
+	names.wait()
 	dataMu.Lock()
 	keys := make([]uint32, 0, len(hosts))
 	for k := range hosts {
 		keys = append(keys, k)
 	}
 	dataMu.Unlock()
-	for _, key := range keys {
-		hwg.Add(1)
-		go func(key uint32) {
-			defer hwg.Done()
-			select {
-			case sem <- struct{}{}:
-			case <-ctx.Done():
-				return
-			}
-			defer func() { <-sem }()
-			lctx, lc := context.WithTimeout(ctx, hostnameTimeout)
-			defer lc()
-			name, err := defaultLookup(lctx, addrFromUint32(key).String())
-			if err != nil || name == "" {
-				return
-			}
-			namesMu.Lock()
-			names[key] = name
-			namesMu.Unlock()
-		}(key)
-	}
-	hwg.Wait()
-
-	// Final pass: re-emit every discovered host with MAC, vendor and
-	// hostname filled in, then the final progress.
 	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
 	for _, k := range keys {
-		dataMu.Lock()
-		h := *hosts[k]
-		dataMu.Unlock()
-		h.Hostname = names[k]
-		h.MAC = macs[k]
-		if h.MAC != "" {
-			h.Vendor = OUIVendor(h.MAC)
-		}
-		s.emit(ctx, Event{Kind: EventHost, Host: &h})
+		s.emit(ctx, Event{Kind: EventHost, Host: snapshotHost(k)})
 	}
 	s.emitFinal(ctx, Event{Kind: EventDone, Progress: progress(total, &scanned, &online)})
 }
+
+// hostnames runs bounded-concurrency reverse DNS for discovered hosts
+// and reports each result as soon as it lands, instead of holding all
+// names for a sweep-end batch.
+type hostnames struct {
+	ctx context.Context
+	sem chan struct{}
+	wg  sync.WaitGroup
+}
+
+func newHostnames(ctx context.Context) *hostnames {
+	return &hostnames{ctx: ctx, sem: make(chan struct{}, hostnameWorkers)}
+}
+
+// lookup resolves ip in the background and calls back with the name,
+// or "" on failure or cancellation. The callback runs on the lookup
+// goroutine, so wait covers it too.
+func (h *hostnames) lookup(key uint32, ip netip.Addr, cb func(name string)) {
+	h.wg.Add(1)
+	go func() {
+		defer h.wg.Done()
+		select {
+		case h.sem <- struct{}{}:
+		case <-h.ctx.Done():
+			return
+		}
+		defer func() { <-h.sem }()
+		lctx, lc := context.WithTimeout(h.ctx, hostnameTimeout)
+		defer lc()
+		name, err := defaultLookup(lctx, ip.String())
+		if err != nil || name == "" {
+			cb("")
+			return
+		}
+		cb(name)
+	}()
+}
+
+// wait blocks until every in-flight lookup, and its callback, is done.
+func (h *hostnames) wait() { h.wg.Wait() }
 
 func progress(total int64, scanned, online *atomic.Int64) model.Progress {
 	return model.Progress{Scanned: int(scanned.Load()), Total: int(total), Online: int(online.Load())}
