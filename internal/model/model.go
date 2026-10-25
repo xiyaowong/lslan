@@ -15,6 +15,7 @@ type NIC struct {
 	PrefixLen int
 	MAC       string
 	Gateway   netip.Addr
+	Virtual   bool // TUN/TAP/tunnel rather than physical LAN
 }
 
 // HostState is the reachability of a host within the last sweep.

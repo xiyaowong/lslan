@@ -1,4 +1,4 @@
-package main
+package ui
 
 import (
 	"net/netip"
@@ -19,7 +19,7 @@ func TestSmoke(t *testing.T) {
 	a.rangeForNIC = func(n model.NIC) (netip.Addr, netip.Addr) {
 		return netip.MustParseAddr("192.168.1.0"), netip.MustParseAddr("192.168.1.255")
 	}
-	tt := ui.NewTester(a.view, 1000, 680)
+	tt := ui.NewTester(a.View, 1000, 680)
 	a.loadNICs()
 	tt.Frame()
 	if !tt.HasText("以太网 (192.168.1.23)") {

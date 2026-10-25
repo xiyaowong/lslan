@@ -1,4 +1,4 @@
-package main
+package ui
 
 import (
 	"slices"
@@ -19,9 +19,9 @@ var hostTableColumns = []ui.TableColumn{
 	{Title: "开放端口", ID: "ports", Width: 110},
 }
 
-// view rebuilds the whole interface each frame: toolbar, status line,
+// View rebuilds the whole interface each frame: toolbar, status line,
 // host table, detail panel.
-func (a *app) view(c *ui.Context) {
+func (a *app) View(c *ui.Context) {
 	a.runPending()
 	a.presets()
 	ui.Column(c).Fill().Children(func() {
