@@ -6,6 +6,7 @@ import (
 	"context"
 	"net"
 	"net/netip"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -57,6 +58,15 @@ type mdnsRunner struct {
 	id     atomic.Uint32
 }
 
+// mdnsOff reports whether mDNS discovery is turned off, by LSLAN_MDNS=0
+// or a value starting with "n": it binds a UDP port and a multicast group
+// that a second copy of the app cannot share, so a development run that
+// may sit beside another one on the same machine turns it off.
+func mdnsOff() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("LSLAN_MDNS")))
+	return v == "0" || v == "off" || v == "false" || v == "no"
+}
+
 // startMDNS launches mDNS discovery for one sweep. It returns a runner
 // even when nothing could be started; probe then drops everything.
 func startMDNS(ctx context.Context, nic model.NIC, merge mdnsMerge) *mdnsRunner {
@@ -66,6 +76,9 @@ func startMDNS(ctx context.Context, nic model.NIC, merge mdnsMerge) *mdnsRunner 
 		probeQ: make(chan netip.Addr, 128),
 		probed: map[uint32]struct{}{},
 		types:  map[string]struct{}{},
+	}
+	if mdnsOff() {
+		return m // probes and answers go nowhere
 	}
 	for _, t := range mdnsServiceTypes {
 		m.types[t] = struct{}{}

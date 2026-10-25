@@ -56,7 +56,7 @@ func (a *app) serviceSection(c *ui.Context, t *ui.Theme, h model.Host) {
 	if len(h.Services) == 0 {
 		return
 	}
-	section(c, t, "设备服务", fmt.Sprintf("自报 %d 项", len(h.Services)), func() {
+	section(c, t, "网络服务", fmt.Sprintf("自报 %d 项", len(h.Services)), func() {
 		for i, sv := range h.Services {
 			if i > 0 {
 				ui.Divider(c).Shrink(0)
