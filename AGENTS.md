@@ -18,7 +18,8 @@ lslan — 家庭局域网 IP 扫描工具(Windows)。需求:[需求.md](需求.m
 
 ## 结构
 
-- `main.go`(可同包拆分)— UI,view 每帧重建
+- `main.go` — 仅启动窗口
+- `internal/ui` — app 状态与视图(工具栏/表格/详情面板)
 - `internal/model` — 共享类型
 - `internal/scan` — 引擎:网卡、ICMP、ARP、OUI、端口、Ping
 
