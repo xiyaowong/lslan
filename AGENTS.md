@@ -14,7 +14,9 @@ lslan — 家庭局域网 IP 扫描工具(Windows)。需求:[需求.md](需求.m
 
 ## 命令
 
-用 justfile:`just dev` / `just check`(fmt+vet+test)/ `just build` / `just clean`
+用 justfile:`just dev` / `just check`(fmt+vet+test)/ `just build` / `just run` / `just clean`
+
+`just run` 构建到固定路径 `build/test/lslan-test.exe` 再启动:防火墙授权按 exe 路径记,固定路径才授权一次,无人值守也能跑
 
 ## 结构
 
