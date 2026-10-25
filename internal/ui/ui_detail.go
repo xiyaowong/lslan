@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"net/netip"
 	"slices"
 
 	"github.com/egoist/mygo/ui"
@@ -186,10 +187,10 @@ func (a *app) portSection(c *ui.Context, h model.Host) {
 				openResults = append(openResults, p)
 			}
 		}
-		height := float32(len(openResults))*26 + 8
+		height := float32(len(openResults))*28 + 8
 		ui.Scroll(c).TrackScroll(&a.portScroll).Height(min(height, 180)).Shrink(0).Children(func() {
 			for _, p := range openResults {
-				portRow(c, p, t)
+				a.portRow(c, h.IP, p, t)
 			}
 		})
 	default:
@@ -197,13 +198,21 @@ func (a *app) portSection(c *ui.Context, h model.Host) {
 	}
 }
 
-// portRow is one aligned row: port number, service, state.
-func portRow(c *ui.Context, p model.Port, t *ui.Theme) {
-	ui.Row(c).Height(26).AlignItems(ui.Center).Children(func() {
-		ui.Textf(c, "%d", p.Number).Font("monospace").Width(60).TextAlign(ui.End).
+// portRow is one aligned row: port number, the service in plain words,
+// state, then the port's next steps (issue #18) — open or copy only.
+func (a *app) portRow(c *ui.Context, ip netip.Addr, p model.Port, t *ui.Theme) {
+	ui.Row(c).Height(28).AlignItems(ui.Center).Gap(6).Children(func() {
+		ui.Textf(c, "%d", p.Number).Font("monospace").Width(52).TextAlign(ui.End).
 			FontSize(12).TextColor(t.Text)
-		ui.Text(c, orDash(p.Service)).Width(110).SingleLine().FontSize(12).TextColor(t.Text)
+		ui.Text(c, portLabel(p)).Width(76).SingleLine().FontSize(12).TextColor(t.Text)
 		ui.Text(c, "开放").FontSize(12).FontWeight(600).TextColor(t.Success)
+		ui.Box(c).Grow(1)
+		for _, act := range portActions(ip, p) {
+			btn := ui.Button(c, act.Label).FontSize(12)
+			if btn.Clicked() {
+				runPortAction(c, act)
+			}
+		}
 	})
 }
 

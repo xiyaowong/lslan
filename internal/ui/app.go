@@ -129,6 +129,10 @@ type app struct {
 	portScroll   ui.ScrollState
 	// moreOpen shows the popover with the port presets beyond the common one.
 	moreOpen bool
+
+	// logo is the app icon drawn into the title bar, nil if none given
+	// or it failed to decode.
+	logo *ui.Bitmap
 }
 
 func newApp() *app {
@@ -175,8 +179,15 @@ func (a *app) runPending() {
 	}
 }
 
-// NewApp creates the app state.
-func NewApp() *app { return newApp() }
+// NewApp creates the app state. iconPNG is the app icon for the title
+// bar; a nil or undecodable one just leaves the logo out.
+func NewApp(iconPNG []byte) *app {
+	a := newApp()
+	if bmp, err := ui.DecodeBitmap(iconPNG); err == nil {
+		a.logo = bmp
+	}
+	return a
+}
 
 // AttachWindow binds the app to the main window and starts NIC loading.
 func (a *app) AttachWindow(opts mygo.WindowOptions) {
@@ -640,18 +651,14 @@ func (a *app) onlineCount() int {
 	return n
 }
 
-// onlineIPs lists online hosts' addresses, one per line.
-func (a *app) onlineIPs() string {
-	var ips []netip.Addr
+// discoveredCount counts hosts the sweep found responding; the offline
+// backfill of #21 does not count, the status bar shows it under 总数.
+func (a *app) discoveredCount() int {
+	n := 0
 	for _, h := range a.hosts {
-		if h.State == model.StateOnline {
-			ips = append(ips, h.IP)
+		if h.State != model.StateOffline {
+			n++
 		}
 	}
-	slices.SortFunc(ips, netip.Addr.Compare)
-	parts := make([]string, len(ips))
-	for i, ip := range ips {
-		parts[i] = ip.String()
-	}
-	return strings.Join(parts, "\n")
+	return n
 }
