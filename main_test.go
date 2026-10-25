@@ -12,8 +12,8 @@ func TestWindowSize(t *testing.T) {
 	}{
 		{"large screen", 2560, 1400, prefWidth, prefHeight},
 		{"1080p", 1920, 1040, prefWidth, prefHeight},
-		{"laptop 1366x768", 1366, 728, 1080, 626},
-		{"small 1024x600", 1024, 560, 880, 560},
+		{"laptop 1366x768", 1366, 728, 900, 620},
+		{"small 1024x600", 1024, 560, 860, 520},
 		{"tiny 800x480", 800, 480, 800, 480},
 	}
 	for _, c := range cases {

@@ -13,12 +13,13 @@ import (
 //go:embed resources/icon.png
 var iconPNG []byte
 
-// Window geometry the view is laid out for: a size that shows the host
-// card and the detail sidebar side by side, bounded by the screen it
-// opens on so a small laptop gets a window it can still use.
+// Window geometry: a scanner's window, not a workspace's. 900 is the host
+// card and the detail sidebar side by side with a little room to spare,
+// 620 shows a dozen hosts above the status bar; the screen it opens on
+// bounds both, for a small laptop.
 const (
-	prefWidth, prefHeight   = 1080, 800
-	minWidth, minHeight     = 880, 560
+	prefWidth, prefHeight   = 900, 620
+	minWidth, minHeight     = 860, 520
 	widthShare, heightShare = 0.82, 0.86
 )
 
