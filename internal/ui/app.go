@@ -61,6 +61,7 @@ type app struct {
 	portPresets func() []scan.Preset
 	scanPorts   func(ctx context.Context, ip netip.Addr, ports []int) ([]model.Port, error)
 	startPingFn func(ctx context.Context, ip netip.Addr) (pingSessionIface, error)
+	newPingTerm func() (pingTerminalIface, error)
 
 	// win is nil in tests, where dispatch queues onto pending, drained at
 	// the view's start (goroutine updates must not touch the test goroutine).
@@ -91,13 +92,19 @@ type app struct {
 	selRow      int
 	selIP       netip.Addr
 
-	// Ping state; pingGen drops samples of a stopped session.
+	// detailHeight is the split's lower pane (detail panel), draggable.
+	detailHeight float32
+
+	// Ping state; pingGen drops samples of a stopped session. pingTerm is
+	// the terminal plugin view of the session, nil when it could not be
+	// created (the plain line list stands in).
 	pingGen    int
 	pingCancel context.CancelFunc
 	pingIP     netip.Addr
 	pingLines  []string
 	pingStats  pingStats
 	pingList   ui.ListState
+	pingTerm   pingTerminalIface
 
 	// Port scan state.
 	presetNames  []string
@@ -108,6 +115,7 @@ type app struct {
 	portIP       netip.Addr
 	portResults  []model.Port
 	portErr      string
+	portScroll   ui.ScrollState
 }
 
 func newApp() *app {
@@ -120,9 +128,10 @@ func newApp() *app {
 		startPingFn: func(ctx context.Context, ip netip.Addr) (pingSessionIface, error) {
 			return scan.StartPing(ctx, ip)
 		},
-		hosts:  map[netip.Addr]model.Host{},
-		selRow: -1,
-		sort:   ui.SortOrder{Column: "ip"},
+		newPingTerm: newTerminal,
+		hosts:       map[netip.Addr]model.Host{},
+		selRow:      -1,
+		sort:        ui.SortOrder{Column: "ip"},
 	}
 	a.tableState = ui.ListState{Selected: &a.selRow, Sort: &a.sort}
 	a.pingList = ui.ListState{FollowEnd: true}
@@ -158,6 +167,7 @@ func NewApp() *app { return newApp() }
 func (a *app) AttachWindow(opts mygo.WindowOptions) {
 	opts.Content = ui.View(a.View)
 	a.win = mygo.NewWindow(opts)
+	a.win.OnClosed(func() { a.stopPing() })
 	go a.loadNICs()
 }
 
@@ -166,7 +176,7 @@ func (a *app) loadNICs() {
 	nics, err := a.listNICs()
 	a.dispatch(func() {
 		if err != nil {
-			a.scanErr = "读取网卡失败: " + err.Error()
+			a.scanErr = "读取网卡信息失败，请重启程序试试"
 			return
 		}
 		a.setNICs(nics)
@@ -262,7 +272,7 @@ func (a *app) startScan() {
 	}
 	a.startPump()
 	if err := a.scanner.Start(*nic, start, end); err != nil {
-		a.scanErr = err.Error()
+		a.scanErr = "无法开始扫描，请检查网卡后重试"
 		return
 	}
 	n, _ := rangeCount(start, end)
@@ -300,20 +310,23 @@ func (a *app) applyEvent(ev scan.Event) {
 		a.progress = ev.Progress
 	case scan.EventError:
 		a.scanning = false
-		a.scanErr = ev.Err.Error()
+		a.scanErr = "扫描出了点问题，已停止。可重新开始扫描"
 	}
 }
 
 // stopPing ends the current session; its in-flight samples are dropped by
-// pingGen.
+// pingGen. Safe to call with no session running.
 func (a *app) stopPing() {
-	if a.pingCancel == nil {
-		return
-	}
 	a.pingGen++
-	cancel := a.pingCancel
-	a.pingCancel = nil
-	cancel()
+	if a.pingCancel != nil {
+		cancel := a.pingCancel
+		a.pingCancel = nil
+		cancel()
+	}
+	if a.pingTerm != nil {
+		a.pingTerm.close()
+		a.pingTerm = nil
+	}
 }
 
 // startPing pings ip, stopping any session still running.
@@ -326,9 +339,13 @@ func (a *app) startPing(ip netip.Addr) {
 	a.pingIP = ip
 	a.pingLines = nil
 	a.pingStats = pingStats{}
+	if term, err := a.newPingTerm(); err == nil {
+		a.pingTerm = term
+		term.feed("正在 Ping "+ip.String()+":", true)
+	}
 	sess, err := a.startPingFn(ctx, ip)
 	if err != nil {
-		a.pingLines = append(a.pingLines, "启动失败: "+err.Error())
+		a.feedPing("Ping 没能启动，请稍后再试", false)
 		a.pingCancel = nil
 		cancel()
 		return
@@ -353,15 +370,23 @@ func (a *app) startPing(ip netip.Addr) {
 func (a *app) applyPingSample(s model.PingSample) {
 	st := &a.pingStats
 	st.sent++
-	line := "请求超时。"
+	line, ok := "请求超时。", false
 	if s.OK {
 		st.recv++
 		st.rttTotal += s.RTT
-		line = fmt.Sprintf("来自 %s: 字节=32 时间=%.1fms TTL=%d", a.pingIP, s.RTT.Seconds()*1000, s.TTL)
+		line, ok = fmt.Sprintf("来自 %s: 字节=32 时间=%.1fms TTL=%d", a.pingIP, s.RTT.Seconds()*1000, s.TTL), true
 	}
 	a.pingLines = append(a.pingLines, line)
 	if len(a.pingLines) > 400 {
 		a.pingLines = append([]string(nil), a.pingLines[len(a.pingLines)-300:]...)
+	}
+	a.feedPing(line, ok)
+}
+
+// feedPing sends one output line to the terminal, when there is one.
+func (a *app) feedPing(line string, ok bool) {
+	if a.pingTerm != nil {
+		a.pingTerm.feed(line, ok)
 	}
 }
 
@@ -402,7 +427,7 @@ func (a *app) startPortScan(ip netip.Addr) {
 		a.dispatch(func() {
 			a.portScanning = false
 			if err != nil {
-				a.portErr = err.Error()
+				a.portErr = "端口扫描没跑完，请稍后再试"
 				return
 			}
 			a.portResults = ports
@@ -424,27 +449,37 @@ func (a *app) visibleHosts() []model.Host {
 }
 
 func sortHosts(hs []model.Host, so ui.SortOrder) {
+	// Every comparator ends in the IP, so rows keep one order frame to
+	// frame no matter how the map iterates; ties must never flip or the
+	// table jumps under a resting pointer. Descending negates instead of
+	// reversing, keeping that order.
+	desc := 1
+	if so.Descending {
+		desc = -1
+	}
 	var cmp func(x, y model.Host) int
 	switch so.Column {
 	case "state":
-		cmp = func(x, y model.Host) int { return int(x.State) - int(y.State) }
+		cmp = func(x, y model.Host) int { return desc * (int(x.State) - int(y.State)) }
 	case "host":
-		cmp = func(x, y model.Host) int { return x.LastOctet() - y.LastOctet() }
+		cmp = func(x, y model.Host) int { return desc * (x.LastOctet() - y.LastOctet()) }
 	case "vendor":
-		cmp = func(x, y model.Host) int { return strings.Compare(x.Vendor, y.Vendor) }
+		cmp = func(x, y model.Host) int { return desc * strings.Compare(x.Vendor, y.Vendor) }
 	case "mac":
-		cmp = func(x, y model.Host) int { return strings.Compare(x.MAC, y.MAC) }
+		cmp = func(x, y model.Host) int { return desc * strings.Compare(x.MAC, y.MAC) }
 	case "hostname":
-		cmp = func(x, y model.Host) int { return strings.Compare(x.Hostname, y.Hostname) }
+		cmp = func(x, y model.Host) int { return desc * strings.Compare(x.Hostname, y.Hostname) }
 	case "ports":
-		cmp = func(x, y model.Host) int { return openPortCount(x) - openPortCount(y) }
+		cmp = func(x, y model.Host) int { return desc * (openPortCount(x) - openPortCount(y)) }
 	default:
-		cmp = func(x, y model.Host) int { return x.IP.Compare(y.IP) }
+		cmp = func(x, y model.Host) int { return desc * x.IP.Compare(y.IP) }
 	}
-	slices.SortStableFunc(hs, cmp)
-	if so.Descending {
-		slices.Reverse(hs)
-	}
+	slices.SortFunc(hs, func(x, y model.Host) int {
+		if c := cmp(x, y); c != 0 {
+			return c
+		}
+		return x.IP.Compare(y.IP)
+	})
 }
 
 func openPortCount(h model.Host) int {
