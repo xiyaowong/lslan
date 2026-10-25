@@ -2,6 +2,7 @@ package ui
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -75,10 +76,6 @@ func (a *app) toolbar(c *ui.Context) {
 		default:
 			ui.Text(c, "未找到可用网卡").TextColor(t.Danger)
 		}
-		ui.Text(c, "范围").TextColor(t.TextMuted)
-		ui.TextInput(c, &a.startIP).Label("开始 IP").Width(100)
-		ui.Text(c, "–").TextColor(t.TextMuted)
-		ui.TextInput(c, &a.endIP).Label("结束 IP").Width(100)
 
 		ui.Box(c).Grow(1)
 
@@ -100,6 +97,108 @@ func (a *app) toolbar(c *ui.Context) {
 			a.startScan()
 		}
 	})
+	a.rangeBar(c)
+}
+
+// rangeBar is the toolbar's second line: the sweep range as a segmented
+// IP control, eight octet cells with fixed separators. The three network
+// cells lock to the NIC's prefix, so a wrong network cannot be typed;
+// "整个网段" restores the NIC's default.
+func (a *app) rangeBar(c *ui.Context) {
+	t := c.Theme()
+	ui.Row(c).Padding(0, 12).Gap(8).AlignItems(ui.Center).Shrink(0).Children(func() {
+		ui.Text(c, "范围").TextColor(t.TextMuted)
+		a.ipField(c, t)
+		if ui.Button(c, "整个网段").Clicked() {
+			a.fillRange()
+		}
+		if n, ok := a.rangeTotal(); ok && n > 256 {
+			if ui.Button(c, "收窄到 C 段").Clicked() {
+				a.narrowRange()
+			}
+			ui.Textf(c, "范围共 %d 个地址，扫描会很慢", n).FontSize(12).TextColor(t.TextMuted)
+		}
+	})
+}
+
+// ipField is the segmented control: one bordered row holding eight octet
+// cells, `.` between the cells of an address and `–` between addresses.
+func (a *app) ipField(c *ui.Context, t *ui.Theme) {
+	ui.Row(c).Gap(t.Space(0.5)).AlignItems(ui.Center).Padding(t.Space(1), t.Space(1.5)).
+		Radius(t.Radius).Border(1, t.Border).Background(t.Surface).Shrink(0).Children(func() {
+		for i := range 8 {
+			if i == 4 {
+				ui.Text(c, "–").TextColor(t.TextMuted).Font("monospace")
+			}
+			if i%4 != 0 {
+				ui.Text(c, ".").TextColor(t.TextMuted).Font("monospace")
+			}
+			a.ipCell(c, t, i)
+		}
+	})
+}
+
+// ipCell builds one octet cell: monospaced digits, right-aligned. A
+// locked cell shows a network octet of the NIC, disabled and grayed. In
+// an editable cell the third digit moves to the next one, and Backspace
+// on an empty one goes back a cell; the moves land through a.focusCell,
+// whose wish ipCell picks up as it builds.
+func (a *app) ipCell(c *ui.Context, t *ui.Theme, i int) {
+	w := t.Space(8)
+	if a.cellLocked(i) {
+		ui.TextInputBase(c, &a.ipCells[i]).Width(w).Font("monospace").TextAlign(ui.End).
+			Disabled(true).TextColor(t.TextMuted).Label("IP 第 " + strconv.Itoa(i+1) + " 段（网段，自动）")
+		return
+	}
+	cell := ui.TextInputBase(c, &a.ipCells[i]).Width(w).Font("monospace").TextAlign(ui.End).
+		Padding(t.Space(0.8), 0).Label("IP 第 " + strconv.Itoa(i+1) + " 段")
+	cell.OnTextKey(func(k ui.TextKey) bool {
+		if k.Key == ui.KeyBackspace && k.Mods == 0 && k.Text() == "" {
+			// Empty, the key would do nothing; take it as a step back.
+			if p := a.prevEditable(i); p >= 0 {
+				a.focusCell(p)
+			}
+		}
+		return false
+	})
+	if a.lastCell == i {
+		// A jump asked for this cell: focus it, caret at the end, and
+		// drop the wish. Focus holds as the view calls it every frame.
+		a.lastCell = -1
+		cell.Focus().SetTextSelection(len(a.ipCells[i]), len(a.ipCells[i]))
+	} else if cell.Changed() {
+		a.ipCells[i] = clampOctet(a.ipCells[i])
+		if len(a.ipCells[i]) >= 3 {
+			if n := a.nextEditable(i); n >= 0 {
+				a.focusCell(n)
+			}
+		}
+	}
+}
+
+// focusCell asks for the focus to land on cell i as the frame builds;
+// ipCell picks the wish up.
+func (a *app) focusCell(i int) { a.lastCell = i }
+
+// nextEditable is the next cell past i the user may edit, -1 at the end.
+func (a *app) nextEditable(i int) int {
+	for j := i + 1; j < 8; j++ {
+		if !a.cellLocked(j) {
+			return j
+		}
+	}
+	return -1
+}
+
+// prevEditable is the last cell before i the user may edit, -1 at the
+// start.
+func (a *app) prevEditable(i int) int {
+	for j := i - 1; j >= 0; j-- {
+		if !a.cellLocked(j) {
+			return j
+		}
+	}
+	return -1
 }
 
 // statusBar sits at the bottom: tallies, scan progress, errors, filters.
@@ -119,11 +218,6 @@ func (a *app) statusBar(c *ui.Context) {
 		}
 		if a.scanErr != "" {
 			ui.Text(c, a.scanErr).FontSize(12).TextColor(t.Danger)
-		}
-		if start, end, ok := a.parseRange(); ok {
-			if n, _ := rangeCount(start, end); n > 256 {
-				ui.Textf(c, "范围共 %d 个地址，建议限制在一个 C 段以内", n).FontSize(12).TextColor(t.TextMuted)
-			}
 		}
 		ui.Box(c).Grow(1)
 		ui.Toggle(c, &a.showOffline, "显示离线").FontSize(12)
