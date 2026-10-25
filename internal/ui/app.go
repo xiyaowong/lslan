@@ -542,6 +542,12 @@ func (a *app) startPortScanPreset(ip netip.Addr, i int) {
 				return
 			}
 			a.portResults = ports
+			// Write back so the table column and the detail facts see the
+			// results too; portResults only covers the selected host.
+			if h, ok := a.hosts[ip]; ok {
+				h.Ports = ports
+				a.hosts[ip] = h
+			}
 		})
 	}()
 }
