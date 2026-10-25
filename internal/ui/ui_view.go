@@ -36,7 +36,8 @@ func (a *app) View(c *ui.Context) {
 }
 
 // body is the table pane, split from the detail pane once a host is
-// selected; the divider between them drags.
+// selected; the divider between them drags, and the table keeps at least
+// half the room.
 func (a *app) body(c *ui.Context, t *ui.Theme) {
 	tablePane := func() {
 		ui.Column(c).Fill().Background(t.Surface).Children(func() {
@@ -52,7 +53,8 @@ func (a *app) body(c *ui.Context, t *ui.Theme) {
 			a.detail(c)
 		})
 	}
-	ui.SplitVertical(c, &a.detailHeight, tablePane, detailPane).Fill()
+	a.tableShare = max(a.tableShare, 50)
+	ui.SplitVerticalPercent(c, &a.tableShare, tablePane, detailPane).Fill()
 }
 
 func (a *app) toolbar(c *ui.Context) {
