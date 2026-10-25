@@ -118,7 +118,7 @@ func (a *app) portSection(c *ui.Context, h model.Host) {
 		}
 		ui.Textf(c, "开放 %d · 共 %d", open, len(results)).FontSize(12).TextColor(t.TextMuted).Shrink(0)
 		height := float32(len(results))*26 + 8
-		ui.Scroll(c).Height(min(height, 180)).Shrink(0).Children(func() {
+		ui.Scroll(c).TrackScroll(&a.portScroll).Height(min(height, 180)).Shrink(0).Children(func() {
 			for _, p := range results {
 				portRow(c, p, t)
 			}

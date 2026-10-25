@@ -13,11 +13,14 @@ func main() {
 	a := ui.NewApp()
 	mygo.App.WhenReady(func() {
 		a.AttachWindow(mygo.WindowOptions{
-			Title:     "局域网 IP 扫描",
-			Width:     1000,
-			Height:    680,
-			MinWidth:  800,
-			MinHeight: 520,
+			Title:             "局域网 IP 扫描",
+			Width:             1000,
+			Height:            680,
+			MinWidth:          800,
+			MinHeight:         520,
+			TitleBarStyle:     mygo.TitleBarHidden,
+			HideWindowButtons: true,
+			BackgroundColor:   "#f7f7f7",
 		})
 	})
 	if err := mygo.App.Run(); err != nil {

@@ -115,6 +115,7 @@ type app struct {
 	portIP       netip.Addr
 	portResults  []model.Port
 	portErr      string
+	portScroll   ui.ScrollState
 }
 
 func newApp() *app {
@@ -175,7 +176,7 @@ func (a *app) loadNICs() {
 	nics, err := a.listNICs()
 	a.dispatch(func() {
 		if err != nil {
-			a.scanErr = "读取网卡失败: " + err.Error()
+			a.scanErr = "读取网卡信息失败，请重启程序试试"
 			return
 		}
 		a.setNICs(nics)
@@ -271,7 +272,7 @@ func (a *app) startScan() {
 	}
 	a.startPump()
 	if err := a.scanner.Start(*nic, start, end); err != nil {
-		a.scanErr = err.Error()
+		a.scanErr = "无法开始扫描，请检查网卡后重试"
 		return
 	}
 	n, _ := rangeCount(start, end)
@@ -309,7 +310,7 @@ func (a *app) applyEvent(ev scan.Event) {
 		a.progress = ev.Progress
 	case scan.EventError:
 		a.scanning = false
-		a.scanErr = ev.Err.Error()
+		a.scanErr = "扫描出了点问题，已停止。可重新开始扫描"
 	}
 }
 
@@ -344,7 +345,7 @@ func (a *app) startPing(ip netip.Addr) {
 	}
 	sess, err := a.startPingFn(ctx, ip)
 	if err != nil {
-		a.feedPing("启动失败: "+err.Error(), false)
+		a.feedPing("Ping 没能启动，请稍后再试", false)
 		a.pingCancel = nil
 		cancel()
 		return
@@ -426,7 +427,7 @@ func (a *app) startPortScan(ip netip.Addr) {
 		a.dispatch(func() {
 			a.portScanning = false
 			if err != nil {
-				a.portErr = err.Error()
+				a.portErr = "端口扫描没跑完，请稍后再试"
 				return
 			}
 			a.portResults = ports
@@ -448,27 +449,37 @@ func (a *app) visibleHosts() []model.Host {
 }
 
 func sortHosts(hs []model.Host, so ui.SortOrder) {
+	// Every comparator ends in the IP, so rows keep one order frame to
+	// frame no matter how the map iterates; ties must never flip or the
+	// table jumps under a resting pointer. Descending negates instead of
+	// reversing, keeping that order.
+	desc := 1
+	if so.Descending {
+		desc = -1
+	}
 	var cmp func(x, y model.Host) int
 	switch so.Column {
 	case "state":
-		cmp = func(x, y model.Host) int { return int(x.State) - int(y.State) }
+		cmp = func(x, y model.Host) int { return desc * (int(x.State) - int(y.State)) }
 	case "host":
-		cmp = func(x, y model.Host) int { return x.LastOctet() - y.LastOctet() }
+		cmp = func(x, y model.Host) int { return desc * (x.LastOctet() - y.LastOctet()) }
 	case "vendor":
-		cmp = func(x, y model.Host) int { return strings.Compare(x.Vendor, y.Vendor) }
+		cmp = func(x, y model.Host) int { return desc * strings.Compare(x.Vendor, y.Vendor) }
 	case "mac":
-		cmp = func(x, y model.Host) int { return strings.Compare(x.MAC, y.MAC) }
+		cmp = func(x, y model.Host) int { return desc * strings.Compare(x.MAC, y.MAC) }
 	case "hostname":
-		cmp = func(x, y model.Host) int { return strings.Compare(x.Hostname, y.Hostname) }
+		cmp = func(x, y model.Host) int { return desc * strings.Compare(x.Hostname, y.Hostname) }
 	case "ports":
-		cmp = func(x, y model.Host) int { return openPortCount(x) - openPortCount(y) }
+		cmp = func(x, y model.Host) int { return desc * (openPortCount(x) - openPortCount(y)) }
 	default:
-		cmp = func(x, y model.Host) int { return x.IP.Compare(y.IP) }
+		cmp = func(x, y model.Host) int { return desc * x.IP.Compare(y.IP) }
 	}
-	slices.SortStableFunc(hs, cmp)
-	if so.Descending {
-		slices.Reverse(hs)
-	}
+	slices.SortFunc(hs, func(x, y model.Host) int {
+		if c := cmp(x, y); c != 0 {
+			return c
+		}
+		return x.IP.Compare(y.IP)
+	})
 }
 
 func openPortCount(h model.Host) int {
