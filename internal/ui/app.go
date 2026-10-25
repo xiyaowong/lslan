@@ -77,6 +77,12 @@ type app struct {
 	scanErr  string
 	progress model.Progress
 	hosts    map[netip.Addr]model.Host
+	// withPorts makes a sweep probe the ports of every host it finds;
+	// portGen drops the results of a sweep the user has since restarted,
+	// and sweepLeft counts the hosts still to probe in this one.
+	withPorts bool
+	portGen   int
+	sweepLeft int
 
 	// Toolbar state.
 	nics       []model.NIC
@@ -389,6 +395,8 @@ func (a *app) startScan() {
 	a.progress = model.Progress{Total: int(n)}
 	a.hosts = map[netip.Addr]model.Host{}
 	a.autoScanned = nil
+	a.portGen++ // a sweep still probing ports is stale now
+	a.sweepLeft = 0
 	a.selRow, a.selIP = -1, netip.Addr{}
 }
 
@@ -417,6 +425,9 @@ func (a *app) applyEvent(ev scan.Event) {
 	case scan.EventDone:
 		a.scanning = false
 		a.progress = ev.Progress
+		if a.withPorts {
+			a.sweepPorts()
+		}
 	case scan.EventError:
 		a.scanning = false
 		a.scanErr = "扫描出了点问题，已停止。可重新开始扫描"
@@ -514,6 +525,58 @@ func (a *app) presets() []scan.Preset {
 		}
 	}
 	return a.presetCache
+}
+
+// sweepPorts probes the ports of every host the sweep found online, a
+// few at a time, and fills the results in as they come. A later sweep or
+// a manual scan leaves the slow ones to their results, which portGen
+// drops.
+func (a *app) sweepPorts() {
+	var ips []netip.Addr
+	for ip, h := range a.hosts {
+		if h.State != model.StateOffline {
+			ips = append(ips, ip)
+		}
+	}
+	if len(ips) == 0 {
+		return
+	}
+	a.sweepLeft = len(ips)
+	a.portGen++
+	gen := a.portGen
+	preset := a.presets()[0]
+	sem := make(chan struct{}, 4)
+	go func() {
+		var wg sync.WaitGroup
+		for _, ip := range ips {
+			wg.Add(1)
+			sem <- struct{}{}
+			go func() {
+				defer wg.Done()
+				defer func() { <-sem }()
+				ports, err := a.scanPorts(context.Background(), ip, preset.Ports)
+				a.dispatch(func() {
+					if a.portGen != gen {
+						return
+					}
+					a.sweepLeft = max(a.sweepLeft-1, 0)
+					if err != nil {
+						return
+					}
+					// A scan the user asked for meanwhile is the newer word.
+					if h, ok := a.hosts[ip]; ok && len(h.Ports) == 0 {
+						h.Ports = ports
+						a.hosts[ip] = h
+					}
+					if a.autoScanned == nil {
+						a.autoScanned = map[netip.Addr]bool{}
+					}
+					a.autoScanned[ip] = true
+				})
+			}()
+		}
+		wg.Wait()
+	}()
 }
 
 // startPortScan probes ip with the common preset.

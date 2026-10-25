@@ -89,14 +89,17 @@ func (a *app) detailPanel(c *ui.Context, t *ui.Theme) ui.Element {
 }
 
 // commandBar is the card's head: the adapter and the sweep range on the
-// left, the scan action on the right, as a command bar.
+// left, the scan action on the right, as a command bar. The adapter takes
+// the room left rather than a fixed width, and its name shortens with an
+// ellipsis instead of pushing the action out.
 func (a *app) commandBar(c *ui.Context, t *ui.Theme) {
 	ui.Column(c).Shrink(0).Padding(14, 16, 12, 16).Gap(10).Children(func() {
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 			fieldLabel(c, t, "网卡")
 			switch {
 			case len(a.nicOptions) > 0:
-				sel := ui.Select(c, &a.nicSel, a.nicOptions).Width(250)
+				sel := ui.Select(c, &a.nicSel, a.nicOptions).
+					Grow(1).MinWidth(160).MaxWidth(320).Shrink(1)
 				if sel.Changed() {
 					if i := slices.Index(a.nicOptions, a.nicSel); i >= 0 {
 						a.nicIdx = i
@@ -144,6 +147,9 @@ func (a *app) rangeBar(c *ui.Context, t *ui.Theme) {
 			}
 			ui.Textf(c, "共 %d 个地址，扫描会比较慢", n).FontSize(12).TextColor(t.TextMuted).SingleLine()
 		}
+		ui.Box(c).Grow(1)
+		ui.Checkbox(c, &a.withPorts, "顺带扫描端口").FontSize(12).
+			Tooltip("扫描时一并查看在线设备开放的端口")
 	})
 }
 
@@ -242,6 +248,10 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 			}
 			ui.Progress(c, pct).Width(140).Height(3).Shrink(0)
 			ui.Textf(c, "已扫描 %d/%d", a.progress.Scanned, a.progress.Total).
+				FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted)
+		} else if a.sweepLeft > 0 {
+			ui.Spinner(c)
+			ui.Textf(c, "正在查看 %d 台设备的端口", a.sweepLeft).
 				FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted)
 		}
 		if a.scanErr != "" {
