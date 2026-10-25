@@ -22,10 +22,13 @@ type treeKey struct {
 // the narrower card keeps the essentials only, as the details of the rest
 // are in that panel anyway.
 var (
+	// The host name takes the room left: it is the field that runs long,
+	// where a MAC address is always 17 figures and a vendor name fits a
+	// short column.
 	hostTreeColumns = []ui.TableColumn{
 		{Title: "设备", ID: "ip", Width: 230, MinWidth: 200, Sortable: true},
-		{Title: "主机名", ID: "hostname", Width: 180, MinWidth: 120, Sortable: true},
-		{Title: "厂商", ID: "vendor", MinWidth: 140, Sortable: true},
+		{Title: "主机名", ID: "hostname", MinWidth: 140, Sortable: true},
+		{Title: "厂商", ID: "vendor", Width: 200, MinWidth: 140, Sortable: true},
 		{Title: "MAC 地址", ID: "mac", Width: 140, MinWidth: 120},
 		{Title: "状态", ID: "state", Width: 64, Sortable: true},
 	}
@@ -314,8 +317,10 @@ func (a *app) hostTree(c *ui.Context, t *ui.Theme, visible []model.Host) {
 	tint := *t
 	tint.Accent, tint.AccentText = chosenRow, t.Text
 	c.SetTheme(&tint)
+	// Beside the detail panel the card keeps only what identifies a device;
+	// the rest of the columns go where they would be cut off.
 	cols := hostTreeColumns
-	if w, _ := c.Size(); a.selIP.IsValid() && (w-45)*a.tableShare/100 < 700 {
+	if w, _ := c.Size(); a.selIP.IsValid() && (w-45)*a.tableShare/100 < 900 {
 		cols = hostTreeColumnsNarrow
 	}
 	ui.OutlineTable(c, &a.tree, cols, roots, a.portBranches,
