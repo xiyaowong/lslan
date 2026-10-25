@@ -112,6 +112,8 @@ func (a *app) commandBar(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, "未找到可用网卡").FontSize(13).TextColor(t.Danger)
 			}
 			ui.Box(c).Grow(1)
+			ui.Checkbox(c, &a.withPorts, "顺带扫描端口").FontSize(12).
+				Tooltip("扫描时一并查看在线设备开放的端口")
 			if a.scanning {
 				if ui.Button(c, "取消扫描").Clicked() {
 					a.scanner.Cancel()
@@ -147,9 +149,6 @@ func (a *app) rangeBar(c *ui.Context, t *ui.Theme) {
 			}
 			ui.Textf(c, "共 %d 个地址，扫描会比较慢", n).FontSize(12).TextColor(t.TextMuted).SingleLine()
 		}
-		ui.Box(c).Grow(1)
-		ui.Checkbox(c, &a.withPorts, "顺带扫描端口").FontSize(12).
-			Tooltip("扫描时一并查看在线设备开放的端口")
 	})
 }
 
