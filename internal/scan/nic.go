@@ -1,0 +1,143 @@
+//go:build windows
+
+package scan
+
+import (
+	"fmt"
+	"net/netip"
+	"sort"
+	"syscall"
+	"unsafe"
+
+	"lslan/internal/model"
+)
+
+// Field layout mirrors IP_ADAPTER_ADDRESSES through FirstGatewayAddress
+// (Win Vista+ 64-bit ABI). The first 8 bytes are a union holding
+// Length+IfIndex (as two ulongs on 64-bit); only the fields below are
+// read, so the rest of the record is left undefined.
+type ipAdapterAddresses struct {
+	Union                  [8]byte // Length, IfIndex
+	Next                   *ipAdapterAddresses
+	AdapterName            *byte
+	FirstUnicastAddress    *ipAdapterUnicastAddress
+	FirstAnycastAddress    uintptr
+	FirstMulticastAddress  uintptr
+	FirstDnsServerAddress  uintptr
+	DnsSuffix              *uint16
+	Description            *uint16
+	FriendlyName           *uint16
+	PhysicalAddress        [maxAdapterAddressLength]byte
+	PhysicalAddressLength  uint32
+	Flags                  uint32
+	Mtu                    uint32
+	IfType                 uint32
+	OperStatus             uint32
+	Ipv6IfIndex            uint32
+	ZoneIndices            [16]uint32
+	FirstPrefix            uintptr
+	TransmitLinkSpeed      uint64
+	ReceiveLinkSpeed       uint64
+	FirstWinsServerAddress uintptr
+	FirstGatewayAddress    *ipAdapterGatewayAddress
+}
+
+// Mirror of IP_ADAPTER_UNICAST_ADDRESS_LH: the first 8 bytes are a
+// union holding Length+Flags.
+type ipAdapterUnicastAddress struct {
+	Union              [8]byte // Length, Flags
+	Next               *ipAdapterUnicastAddress
+	Address            socketAddress
+	PrefixOrigin       uint32
+	SuffixOrigin       uint32
+	DadState           uint32
+	ValidLifetime      uint32
+	PreferredLifetime  uint32
+	LeaseLifetime      uint32
+	OnLinkPrefixLength uint8
+	_                  [7]byte
+}
+
+// Mirror of IP_ADAPTER_GATEWAY_ADDRESS_LH: the first 8 bytes are a
+// union holding Length+Reserved.
+type ipAdapterGatewayAddress struct {
+	Union   [8]byte // Length, Reserved
+	Next    *ipAdapterGatewayAddress
+	Address socketAddress
+}
+
+// ListNICs returns the machine's usable IPv4 adapters (loopback
+// excluded, gateway resolved when known), ordered by interface index.
+func ListNICs() ([]model.NIC, error) {
+	flags := uintptr(gaaIncludePrefix | gaaIncludeGateways)
+	var size uint32
+	buf := []byte{}
+	for attempt := 0; attempt < 5; attempt++ {
+		var bufPtr uintptr
+		if len(buf) > 0 {
+			bufPtr = uintptr(unsafe.Pointer(&buf[0]))
+		}
+		sizePtr := uintptr(unsafe.Pointer(&size))
+		ret, _, _ := procGetAdaptersAddresses.Call(afInet, flags, 0, bufPtr, sizePtr)
+		if ret == 0 {
+			return parseAdapters(buf), nil
+		}
+		// 206 (ERROR_FILENAME_EXCED_RANGE) is what the probe returns when
+		// the reported size was not honored; 0 means the API gave no size
+		// hint, so fall back to the documented 15KB starting buffer.
+		if ret != errBufferOverflow && ret != errFilenameExcedRange {
+			return nil, fmt.Errorf("scan: GetAdaptersAddresses: %w", syscall.Errno(ret))
+		}
+		if size == 0 {
+			size = 15000
+		}
+		buf = make([]byte, size)
+	}
+	return nil, fmt.Errorf("scan: GetAdaptersAddresses: buffer kept resizing")
+}
+
+func parseAdapters(buf []byte) []model.NIC {
+	var nics []model.NIC
+	if len(buf) == 0 {
+		return nics
+	}
+	for aa := (*ipAdapterAddresses)(unsafe.Pointer(&buf[0])); aa != nil; aa = aa.Next {
+		if aa.OperStatus != ifOperUp || aa.IfType == ifTypeLoop {
+			continue
+		}
+		ip, plen, ok := firstIPv4Unicast(aa.FirstUnicastAddress)
+		if !ok || plen == 0 {
+			// A /0 "subnet" is never a real LAN; skip such virtual adapters.
+			continue
+		}
+		nic := model.NIC{
+			Name:      utf16Str(aa.FriendlyName),
+			IP:        ip,
+			PrefixLen: plen,
+		}
+		n := int(aa.PhysicalAddressLength)
+		if n > maxAdapterAddressLength {
+			n = maxAdapterAddressLength
+		}
+		nic.MAC = formatMAC(aa.PhysicalAddress[:n])
+		if aa.FirstGatewayAddress != nil {
+			if g, ok := sockaddrIPv4(aa.FirstGatewayAddress.Address); ok {
+				nic.Gateway = g
+			}
+		}
+		nics = append(nics, nic)
+	}
+	sort.Slice(nics, func(i, j int) bool { return nics[i].Index < nics[j].Index })
+	return nics
+}
+
+func firstIPv4Unicast(u *ipAdapterUnicastAddress) (ip netip.Addr, plen int, ok bool) {
+	for ; u != nil; u = u.Next {
+		a, is4 := sockaddrIPv4(u.Address)
+		if !is4 {
+			continue
+		}
+		return a, int(u.OnLinkPrefixLength), true
+	}
+	return netip.Addr{}, 0, false
+}
