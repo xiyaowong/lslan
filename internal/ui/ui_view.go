@@ -317,8 +317,10 @@ func (a *app) hostTree(c *ui.Context, t *ui.Theme, visible []model.Host) {
 	tint := *t
 	tint.Accent, tint.AccentText = chosenRow, t.Text
 	c.SetTheme(&tint)
+	// Beside the detail panel the card keeps only what identifies a device;
+	// the rest of the columns go where they would be cut off.
 	cols := hostTreeColumns
-	if w, _ := c.Size(); a.selIP.IsValid() && (w-45)*a.tableShare/100 < 700 {
+	if w, _ := c.Size(); a.selIP.IsValid() && (w-45)*a.tableShare/100 < 900 {
 		cols = hostTreeColumnsNarrow
 	}
 	ui.OutlineTable(c, &a.tree, cols, roots, a.portBranches,
