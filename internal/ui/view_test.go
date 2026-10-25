@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"net/netip"
 	"slices"
 	"testing"
@@ -119,7 +120,6 @@ func TestPing(t *testing.T) {
 // the row right-clicked.
 func TestRowContextMenu(t *testing.T) {
 	a := newApp()
-	a.detailHeight = 300 // keep the table pane visible beside the detail
 	tt := ui.NewTester(a.View, 1000, 680)
 
 	ip1 := netip.MustParseAddr("192.168.1.5")
@@ -164,5 +164,101 @@ func TestRowContextMenu(t *testing.T) {
 	}
 	if tt.Clipboard() != ip2.String() {
 		t.Errorf("clipboard = %q, want %q", tt.Clipboard(), ip2.String())
+	}
+}
+
+// bareTerminal mimics the plugin's terminal view: a labeled box that only
+// paints, with no height of its own.
+type bareTerminal struct {
+	fakePingTerminal
+}
+
+func (bareTerminal) view(c *ui.Context) ui.Element {
+	return ui.Box(c).Label("Terminal")
+}
+
+// TestPingTerminalHeight guards the terminal's size in the detail panel:
+// the plugin view paints itself and has no height of its own, so without
+// an explicit height it collapses to nothing (issue #15).
+func TestPingTerminalHeight(t *testing.T) {
+	a := newApp()
+	sess := &fakePingSession{samples: make(chan model.PingSample)}
+	a.startPingFn = func(ctx context.Context, ip netip.Addr) (pingSessionIface, error) { return sess, nil }
+	a.newPingTerm = func() (pingTerminalIface, error) { return &bareTerminal{}, nil }
+	tt := ui.NewTester(a.View, 1000, 680)
+
+	ip := netip.MustParseAddr("192.168.1.23")
+	a.hosts[ip] = model.Host{IP: ip, State: model.StateOnline}
+	a.selRow, a.selIP = 0, ip
+	a.startPing(ip)
+	tt.Frame()
+
+	r, ok := tt.Find("Terminal")
+	if !ok {
+		t.Fatal("terminal view missing from the detail panel")
+	}
+	// Before the fix the view had no height of its own and collapsed to 0.
+	if r.H <= 0 || r.H > 140 {
+		t.Errorf("terminal view height = %v, want within (0, 140]", r.H)
+	}
+}
+
+// TestPingTerminalFallback: with no terminal, the line list stands in and
+// shows the session's opening lines at once, before any sample arrives.
+func TestPingTerminalFallback(t *testing.T) {
+	a := newApp()
+	a.startPingFn = func(ctx context.Context, ip netip.Addr) (pingSessionIface, error) {
+		return nil, errors.New("no engine in test")
+	}
+	a.newPingTerm = func() (pingTerminalIface, error) { return nil, errors.New("no terminal in test") }
+	tt := ui.NewTester(a.View, 1000, 680)
+
+	ip := netip.MustParseAddr("192.168.1.23")
+	a.hosts[ip] = model.Host{IP: ip, State: model.StateOnline}
+	a.selRow, a.selIP = 0, ip
+	a.startPing(ip)
+	tt.Frame()
+
+	for _, s := range []string{"打不开实时输出窗口", "Ping 没能启动"} {
+		if !tt.HasText(s) {
+			t.Errorf("%q missing, texts %q", s, tt.Texts())
+		}
+	}
+}
+
+// TestDetailLayout: selecting a host leaves the table at least half the
+// room and fills the detail panel — facts, actions, the port guide line —
+// with no empty stretch (issue #17).
+func TestDetailLayout(t *testing.T) {
+	a := newApp()
+	tt := ui.NewTester(a.View, 1000, 680)
+
+	ip := netip.MustParseAddr("192.168.1.23")
+	a.hosts[ip] = model.Host{
+		IP: ip, State: model.StateOnline,
+		MAC: "AA:BB:CC:DD:EE:FF", Vendor: "小米", Hostname: "router",
+		LastSeen: time.Now(),
+	}
+	a.selRow, a.selIP = 0, ip
+	tt.Frame()
+
+	row, ok := tt.Find(ip.String())
+	if !ok {
+		t.Fatal("table row missing")
+	}
+	if row.H <= 0 {
+		t.Error("table row collapsed")
+	}
+	head, ok := tt.Find("复制")
+	if !ok {
+		t.Fatal("detail header missing")
+	}
+	if head.Y < row.Y+row.H {
+		t.Errorf("detail header at y=%v sits inside the table pane (row ends at %v)", head.Y, row.Y+row.H)
+	}
+	for _, s := range []string{"MAC", "厂商", "主机名", "上次在线", "开放端口", "点「端口扫描」"} {
+		if !tt.HasText(s) {
+			t.Errorf("%q missing from the detail panel, texts %q", s, tt.Texts())
+		}
 	}
 }

@@ -97,8 +97,9 @@ type app struct {
 	menuHosts  []model.Host
 	nextFrame  []func(c *ui.Context)
 
-	// detailHeight is the split's lower pane (detail panel), draggable.
-	detailHeight float32
+	// tableShare is the table pane's share of the split with the detail
+	// panel, in percent; the rest is the detail panel.
+	tableShare float32
 
 	// Ping state; pingGen drops samples of a stopped session. pingTerm is
 	// the terminal plugin view of the session, nil when it could not be
@@ -113,14 +114,14 @@ type app struct {
 
 	// Port scan state.
 	presetNames  []string
-	presetSel    string
 	presetCache  []scan.Preset
-	portPreset   int
 	portScanning bool
 	portIP       netip.Addr
 	portResults  []model.Port
 	portErr      string
 	portScroll   ui.ScrollState
+	// moreOpen shows the popover with the port presets beyond the common one.
+	moreOpen bool
 }
 
 func newApp() *app {
@@ -137,6 +138,7 @@ func newApp() *app {
 		hosts:       map[netip.Addr]model.Host{},
 		selRow:      -1,
 		sort:        ui.SortOrder{Column: "ip"},
+		tableShare:  60,
 	}
 	a.tableState = ui.ListState{Selected: &a.selRow, Sort: &a.sort}
 	a.pingList = ui.ListState{FollowEnd: true}
@@ -347,9 +349,14 @@ func (a *app) startPing(ip netip.Addr) {
 	if term, err := a.newPingTerm(); err == nil {
 		a.pingTerm = term
 		term.feed("正在 Ping "+ip.String()+":", true)
+	} else {
+		// No terminal: say so in the line list, which must then show every
+		// line, this one included, before the first sample arrives.
+		a.pingLines = append(a.pingLines, "打不开实时输出窗口，下面用文字显示结果")
 	}
 	sess, err := a.startPingFn(ctx, ip)
 	if err != nil {
+		a.pingLines = append(a.pingLines, "Ping 没能启动，请稍后再试")
 		a.feedPing("Ping 没能启动，请稍后再试", false)
 		a.pingCancel = nil
 		cancel()
@@ -403,24 +410,23 @@ func (a *app) presets() []scan.Preset {
 		for i, p := range a.presetCache {
 			a.presetNames[i] = p.Name
 		}
-		if len(a.presetCache) > 0 {
-			a.portPreset = 0
-			a.presetSel = a.presetCache[0].Name
-		}
 	}
 	return a.presetCache
 }
 
-// startPortScan probes ip with the chosen preset.
-func (a *app) startPortScan(ip netip.Addr) {
+// startPortScan probes ip with the common preset.
+func (a *app) startPortScan(ip netip.Addr) { a.startPortScanPreset(ip, 0) }
+
+// startPortScanPreset probes ip with the preset at index i of presets().
+func (a *app) startPortScanPreset(ip netip.Addr, i int) {
 	if a.portScanning {
 		return
 	}
 	ps := a.presets()
-	if a.portPreset < 0 || a.portPreset >= len(ps) {
+	if i < 0 || i >= len(ps) {
 		return
 	}
-	preset := ps[a.portPreset]
+	preset := ps[i]
 	ctx, cancel := context.WithCancel(context.Background())
 	a.portScanning = true
 	a.portIP = ip
