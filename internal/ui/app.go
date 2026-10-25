@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/netip"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -82,8 +83,14 @@ type app struct {
 	nicOptions []string
 	nicSel     string
 	nicIdx     int
-	startIP    string
-	endIP      string
+
+	// ipCells are the segmented control's eight cells: the start address's
+	// four octets, then the end's. cellLock marks that both ends share a
+	// prefix, so the three network cells of each lock. lastCell is the
+	// cell to focus next frame after a jump, -1 for none.
+	ipCells  [8]string
+	cellLock bool
+	lastCell int
 
 	// Table state.
 	tableState  ui.ListState
@@ -131,6 +138,7 @@ func newApp() *app {
 		newPingTerm: newTerminal,
 		hosts:       map[netip.Addr]model.Host{},
 		selRow:      -1,
+		lastCell:    -1,
 		sort:        ui.SortOrder{Column: "ip"},
 	}
 	a.tableState = ui.ListState{Selected: &a.selRow, Sort: &a.sort}
@@ -215,7 +223,97 @@ func (a *app) fillRange() {
 	}
 	start, end := a.rangeForNIC(*nic)
 	start, end = trimRangeEdges(start, end)
-	a.startIP, a.endIP = start.String(), end.String()
+	a.setRange(start, end)
+}
+
+// setRange stores the range in the segmented cells and locks the network
+// octets when both ends share a prefix.
+func (a *app) setRange(start, end netip.Addr) {
+	if !start.IsValid() || !end.IsValid() {
+		return
+	}
+	sb, eb := start.As4(), end.As4()
+	for i := range 4 {
+		a.ipCells[i], a.ipCells[i+4] = strconv.Itoa(int(sb[i])), strconv.Itoa(int(eb[i]))
+	}
+	if _, _, _, ok := splitRange(start, end); ok {
+		a.cellLock = true
+	} else {
+		a.cellLock = false
+	}
+	a.lastCell = -1
+}
+
+// cellLocked tells whether cell i shows a locked network octet: in a
+// locked control, every cell but the host cell of each address.
+func (a *app) cellLocked(i int) bool {
+	return a.cellLock && i%4 != 3
+}
+
+// octet reads cell i as a number, -1 while the cell holds no full value.
+func (a *app) octet(i int) int {
+	n, err := strconv.Atoi(a.ipCells[i])
+	if err != nil {
+		return -1
+	}
+	return n
+}
+
+// cellAddr builds the address of the first (base 0) or second (base 4)
+// cell group; ok is false while any of its cells is not a full octet.
+func (a *app) cellAddr(base int) (netip.Addr, bool) {
+	var b [4]byte
+	for i := range 4 {
+		n := a.octet(base + i)
+		if n < 0 {
+			return netip.Addr{}, false
+		}
+		b[i] = byte(n)
+	}
+	return netip.AddrFrom4(b), true
+}
+
+// fullRange reads the segmented control as an IPv4 span; it fails while
+// the user is mid-edit and an address is incomplete.
+func (a *app) fullRange() (start, end netip.Addr, ok bool) {
+	start, ok1 := a.cellAddr(0)
+	end, ok2 := a.cellAddr(4)
+	if !ok1 || !ok2 {
+		return start, end, false
+	}
+	if end.Compare(start) < 0 {
+		start, end = end, start
+	}
+	return start, end, true
+}
+
+// parseRange reads the cells as a valid ordered span; startScan goes
+// through it.
+func (a *app) parseRange() (start, end netip.Addr, ok bool) {
+	start, end, ok = a.fullRange()
+	return start, end, ok
+}
+
+// narrowRange trims the range to the /24 the start IP sits in.
+func (a *app) narrowRange() {
+	start, _, ok := a.fullRange()
+	if !ok {
+		return
+	}
+	b := start.As4()
+	a.setRange(
+		netip.AddrFrom4([4]byte{b[0], b[1], b[2], 1}),
+		netip.AddrFrom4([4]byte{b[0], b[1], b[2], 254}),
+	)
+}
+
+// rangeTotal is the size of the current range, if it parses.
+func (a *app) rangeTotal() (uint64, bool) {
+	start, end, ok := a.fullRange()
+	if !ok {
+		return 0, false
+	}
+	return rangeCount(start, end)
 }
 
 // trimRangeEdges drops network/broadcast addresses of a subnet-sized range.
@@ -243,15 +341,6 @@ func rangeCount(start, end netip.Addr) (uint64, bool) {
 	return uint64(e) - uint64(s) + 1, true
 }
 
-// parseRange validates the two range inputs as an IPv4 span.
-func (a *app) parseRange() (start, end netip.Addr, ok bool) {
-	start, err1 := netip.ParseAddr(strings.TrimSpace(a.startIP))
-	end, err2 := netip.ParseAddr(strings.TrimSpace(a.endIP))
-	ok = err1 == nil && err2 == nil && start.IsValid() && end.IsValid() &&
-		start.Is4() && end.Is4() && end.Compare(start) >= 0
-	return start, end, ok
-}
-
 // startScan begins one sweep on the selected range.
 func (a *app) startScan() {
 	if a.scanning {
@@ -264,7 +353,7 @@ func (a *app) startScan() {
 	}
 	start, end, ok := a.parseRange()
 	if !ok {
-		a.scanErr = "IP 范围无效"
+		a.scanErr = "IP 范围无效，请填写完开始和结束 IP"
 		return
 	}
 	if a.scanner == nil {

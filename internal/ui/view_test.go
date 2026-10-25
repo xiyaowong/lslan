@@ -27,8 +27,9 @@ func TestSmoke(t *testing.T) {
 	if !tt.HasText("以太网 (192.168.1.23)") {
 		t.Errorf("NIC option missing, texts %q", tt.Texts())
 	}
-	if a.startIP != "192.168.1.1" || a.endIP != "192.168.1.254" {
-		t.Errorf("range = %s..%s, want 192.168.1.1..192.168.1.254", a.startIP, a.endIP)
+	if a.ipCells[0] != "192" || a.ipCells[1] != "168" || a.ipCells[2] != "1" ||
+		a.ipCells[3] != "1" || a.ipCells[7] != "254" {
+		t.Errorf("cells = %v, want 192.168.1.1..192.168.1.254", a.ipCells)
 	}
 }
 
