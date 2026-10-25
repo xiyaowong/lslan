@@ -354,17 +354,16 @@ func (a *app) readTreeSelection() {
 	a.selIP = netip.Addr{}
 }
 
-// autoPortScan probes a host the user just opened, unless this sweep
-// already did: the details are worth the wait the first time a device is
-// looked at, not on every return to it.
+// autoPortScan probes a host the user just opened, unless it was asked
+// already this sweep: the details are worth the wait the first time a
+// device is looked at, not on every return to it.
 func (a *app) autoPortScan(ip netip.Addr) {
-	if a.portScanning || a.autoScanned[ip] {
+	if a.portScanning {
 		return
 	}
-	if a.autoScanned == nil {
-		a.autoScanned = map[netip.Addr]bool{}
+	if _, done := a.ports[ip]; done {
+		return
 	}
-	a.autoScanned[ip] = true
 	a.startPortScan(ip)
 }
 
@@ -374,7 +373,7 @@ func (a *app) portBranches(k treeKey) []treeKey {
 	if k.Port != 0 {
 		return nil
 	}
-	ports := openPorts(a.hosts[k.IP])
+	ports := openPorts(a.ports[k.IP])
 	if len(ports) == 0 {
 		return nil
 	}
@@ -396,7 +395,7 @@ func (a *app) treeCell(c *ui.Context, col string, k treeKey) {
 		if port {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Textf(c, "%d", k.Port).FontSize(12).FontWeight(600).FontFeatures("tnum").TextColor(text)
-				ui.Text(c, portLabel(model.Port{Number: k.Port, Service: serviceName(h.Ports, k.Port)})).
+				ui.Text(c, portLabel(model.Port{Number: k.Port, Service: serviceName(a.ports[k.IP], k.Port)})).
 					FontSize(12).TextColor(t.TextMuted)
 			})
 			return
@@ -473,10 +472,10 @@ func serviceName(ports []model.Port, n int) string {
 	return ""
 }
 
-// openPorts lists the host's open ports by number.
-func openPorts(h model.Host) []model.Port {
-	out := make([]model.Port, 0, len(h.Ports))
-	for _, p := range h.Ports {
+// openPorts lists the open ports of a scan by number.
+func openPorts(ports []model.Port) []model.Port {
+	out := make([]model.Port, 0, len(ports))
+	for _, p := range ports {
 		if p.Open {
 			out = append(out, p)
 		}

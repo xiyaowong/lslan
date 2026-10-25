@@ -130,10 +130,12 @@ type app struct {
 	portIP       netip.Addr
 	portErr      string
 	portScroll   ui.ScrollState
-	// autoScanned holds the hosts this sweep already scanned as they were
-	// opened; a new sweep clears it. sweepPending holds those the sweep is
-	// probing now, so their details can say so.
-	autoScanned  map[netip.Addr]bool
+	// ports is the cache of port scan results, by address: a key present
+	// means the host has been asked (an empty slice, that nothing was
+	// open). The engine knows nothing of ports, so they live apart from
+	// hosts and only a new sweep clears them; sweepPending holds those the
+	// sweep is probing now, so their details can say so.
+	ports        map[netip.Addr][]model.Port
 	sweepPending map[netip.Addr]bool
 	// moreOpen shows the popover with the port presets beyond the common one.
 	moreOpen bool
@@ -155,6 +157,7 @@ func newApp() *app {
 		},
 		newPingTerm: newTerminal,
 		hosts:       map[netip.Addr]model.Host{},
+		ports:       map[netip.Addr][]model.Port{},
 		selRow:      -1,
 		lastCell:    -1,
 		sort:        ui.SortOrder{Column: "ip"},
@@ -395,7 +398,7 @@ func (a *app) startScan() {
 	a.scanErr = ""
 	a.progress = model.Progress{Total: int(n)}
 	a.hosts = map[netip.Addr]model.Host{}
-	a.autoScanned = nil
+	a.ports = map[netip.Addr][]model.Port{}
 	a.portGen++ // a sweep still probing ports is stale now
 	a.sweepLeft = 0
 	a.sweepPending = nil
@@ -571,14 +574,9 @@ func (a *app) sweepPorts() {
 						return
 					}
 					// A scan the user asked for meanwhile is the newer word.
-					if h, ok := a.hosts[ip]; ok && len(h.Ports) == 0 {
-						h.Ports = ports
-						a.hosts[ip] = h
+					if _, done := a.ports[ip]; !done {
+						a.ports[ip] = ports
 					}
-					if a.autoScanned == nil {
-						a.autoScanned = map[netip.Addr]bool{}
-					}
-					a.autoScanned[ip] = true
 				})
 			}()
 		}
@@ -612,12 +610,7 @@ func (a *app) startPortScanPreset(ip netip.Addr, i int) {
 				a.portErr = "端口扫描没跑完，请稍后再试"
 				return
 			}
-			// The host holds the results, for the tree, the facts and the
-			// port list alike.
-			if h, ok := a.hosts[ip]; ok {
-				h.Ports = ports
-				a.hosts[ip] = h
-			}
+			a.ports[ip] = ports
 		})
 	}()
 }
