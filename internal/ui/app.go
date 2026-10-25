@@ -94,8 +94,8 @@ type app struct {
 	// menuHosts mirrors the rows the table currently shows, so the row
 	// context menu can look the row up. nextFrame runs fns needing the
 	// view's Context, at the start of the next View.
-	menuHosts  []model.Host
-	nextFrame  []func(c *ui.Context)
+	menuHosts []model.Host
+	nextFrame []func(c *ui.Context)
 
 	// detailHeight is the split's lower pane (detail panel), draggable.
 	detailHeight float32
