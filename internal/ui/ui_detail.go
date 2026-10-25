@@ -23,6 +23,7 @@ func (a *app) detail(c *ui.Context) {
 		a.detailHeader(c, h)
 		a.detailInfo(c, h)
 		a.detailActions(c, h)
+		a.serviceSection(c, h)
 		a.pingTerminal(c, h)
 		a.portSection(c, h)
 	})
@@ -44,6 +45,9 @@ func (a *app) detailHeader(c *ui.Context, h model.Host) {
 		ui.Text(c, h.IP.String()).FontSize(16).Bold().Font("monospace")
 		if h.Gateway {
 			pill(c, "网关", t.Accent, t.AccentText)
+		}
+		if h.ViaMDNS {
+			pill(c, "服务发现", t.Accent, t.AccentText)
 		}
 		ui.Box(c).Grow(1)
 		if ui.Button(c, "复制").Clicked() {
