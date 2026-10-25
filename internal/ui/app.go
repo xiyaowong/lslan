@@ -177,7 +177,11 @@ func (a *app) setNICs(nics []model.NIC) {
 	a.nics = nics
 	a.nicOptions = a.nicOptions[:0]
 	for _, n := range nics {
-		a.nicOptions = append(a.nicOptions, fmt.Sprintf("%s (%s)", n.Name, n.IP))
+		name := fmt.Sprintf("%s (%s)", n.Name, n.IP)
+		if n.Virtual {
+			name += " 虚拟"
+		}
+		a.nicOptions = append(a.nicOptions, name)
 	}
 	if len(nics) > 0 {
 		a.nicIdx = 0

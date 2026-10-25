@@ -114,6 +114,7 @@ func parseAdapters(buf []byte) []model.NIC {
 			Name:      utf16Str(aa.FriendlyName),
 			IP:        ip,
 			PrefixLen: plen,
+			Virtual:   isVirtualIfType(aa.IfType),
 		}
 		n := int(aa.PhysicalAddressLength)
 		if n > maxAdapterAddressLength {
@@ -127,8 +128,27 @@ func parseAdapters(buf []byte) []model.NIC {
 		}
 		nics = append(nics, nic)
 	}
-	sort.Slice(nics, func(i, j int) bool { return nics[i].Index < nics[j].Index })
+	// Physical adapters first so the UI's default pick is the real LAN.
+	sort.SliceStable(nics, func(i, j int) bool {
+		if nics[i].Virtual != nics[j].Virtual {
+			return !nics[i].Virtual
+		}
+		return nics[i].Index < nics[j].Index
+	})
 	return nics
+}
+
+// isVirtualIfType reports whether an IANA interface type is a virtual
+// adapter (TUN/TAP, tunnel, loopback-like) rather than physical LAN.
+func isVirtualIfType(t uint32) bool {
+	switch t {
+	case 53, // propVirtual
+		131, // tunnel
+		24,  // softwareLoopback
+		999: // (defensive; some drivers report 999 for TUN)
+		return true
+	}
+	return false
 }
 
 func firstIPv4Unicast(u *ipAdapterUnicastAddress) (ip netip.Addr, plen int, ok bool) {
