@@ -23,15 +23,15 @@ type treeKey struct {
 // are in that panel anyway.
 var (
 	hostTreeColumns = []ui.TableColumn{
-		{Title: "设备", ID: "ip", MinWidth: 190, Sortable: true},
-		{Title: "主机名", ID: "hostname", Width: 140, Sortable: true},
-		{Title: "厂商", ID: "vendor", Width: 150, Sortable: true},
-		{Title: "MAC 地址", ID: "mac", Width: 132},
+		{Title: "设备", ID: "ip", Width: 230, MinWidth: 200, Sortable: true},
+		{Title: "主机名", ID: "hostname", Width: 180, MinWidth: 120, Sortable: true},
+		{Title: "厂商", ID: "vendor", MinWidth: 140, Sortable: true},
+		{Title: "MAC 地址", ID: "mac", Width: 140, MinWidth: 120},
 		{Title: "状态", ID: "state", Width: 64, Sortable: true},
 	}
 	hostTreeColumnsNarrow = []ui.TableColumn{
-		{Title: "设备", ID: "ip", MinWidth: 190, Sortable: true},
-		{Title: "主机名", ID: "hostname", Sortable: true},
+		{Title: "设备", ID: "ip", Width: 230, MinWidth: 190, Sortable: true},
+		{Title: "主机名", ID: "hostname", MinWidth: 120, Sortable: true},
 		{Title: "状态", ID: "state", Width: 64, Sortable: true},
 	}
 )
