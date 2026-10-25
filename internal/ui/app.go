@@ -92,19 +92,17 @@ type app struct {
 	cellLock bool
 	lastCell int
 
-	// Table state.
-	tableState  ui.ListState
+	// Host tree: the hosts as roots, each with its open ports as branches
+	// below it. selRow is the row chosen and selIP the host it belongs to,
+	// a port row belonging to its host, so the detail panel always shows a
+	// host.
+	tree        ui.OutlineState[treeKey]
 	sort        ui.SortOrder
 	showOffline bool
 	selRow      int
 	selIP       netip.Addr
-	// menuHosts mirrors the rows the table currently shows, so the row
-	// context menu can look the row up. nextFrame runs fns needing the
-	// view's Context, at the start of the next View.
-	menuHosts []model.Host
-	nextFrame []func(c *ui.Context)
 
-	// tableShare is the table pane's share of the split with the detail
+	// tableShare is the host card's share of the split with the detail
 	// panel, in percent; the rest is the detail panel.
 	tableShare float32
 
@@ -127,6 +125,9 @@ type app struct {
 	portResults  []model.Port
 	portErr      string
 	portScroll   ui.ScrollState
+	// autoScanned holds the hosts this sweep already scanned as they were
+	// opened; a new sweep clears it.
+	autoScanned map[netip.Addr]bool
 	// moreOpen shows the popover with the port presets beyond the common one.
 	moreOpen bool
 
@@ -152,7 +153,7 @@ func newApp() *app {
 		sort:        ui.SortOrder{Column: "ip"},
 		tableShare:  60,
 	}
-	a.tableState = ui.ListState{Selected: &a.selRow, Sort: &a.sort}
+	a.tree.List = ui.ListState{Selected: &a.selRow, Sort: &a.sort}
 	a.pingList = ui.ListState{FollowEnd: true}
 	return a
 }
@@ -387,6 +388,7 @@ func (a *app) startScan() {
 	a.scanErr = ""
 	a.progress = model.Progress{Total: int(n)}
 	a.hosts = map[netip.Addr]model.Host{}
+	a.autoScanned = nil
 	a.selRow, a.selIP = -1, netip.Addr{}
 }
 
@@ -578,16 +580,12 @@ func sortHosts(hs []model.Host, so ui.SortOrder) {
 	switch so.Column {
 	case "state":
 		cmp = func(x, y model.Host) int { return desc * (int(x.State) - int(y.State)) }
-	case "host":
-		cmp = func(x, y model.Host) int { return desc * (x.LastOctet() - y.LastOctet()) }
 	case "vendor":
 		cmp = func(x, y model.Host) int { return desc * strings.Compare(x.Vendor, y.Vendor) }
 	case "mac":
 		cmp = func(x, y model.Host) int { return desc * strings.Compare(x.MAC, y.MAC) }
 	case "hostname":
 		cmp = func(x, y model.Host) int { return desc * strings.Compare(x.Hostname, y.Hostname) }
-	case "ports":
-		cmp = func(x, y model.Host) int { return desc * (openPortCount(x) - openPortCount(y)) }
 	default:
 		cmp = func(x, y model.Host) int { return desc * x.IP.Compare(y.IP) }
 	}
@@ -597,54 +595,6 @@ func sortHosts(hs []model.Host, so ui.SortOrder) {
 		}
 		return x.IP.Compare(y.IP)
 	})
-}
-
-func openPortCount(h model.Host) int {
-	n := 0
-	for _, p := range h.Ports {
-		if p.Open {
-			n++
-		}
-	}
-	return n
-}
-
-// portsSummary renders the port column, e.g. "80, 443, +2".
-func portsSummary(ports []model.Port) string {
-	var open []string
-	for _, p := range ports {
-		if p.Open {
-			open = append(open, fmt.Sprintf("%d", p.Number))
-		}
-	}
-	switch {
-	case len(open) == 0:
-		return ""
-	case len(open) <= 3:
-		return strings.Join(open, ", ")
-	default:
-		return fmt.Sprintf("%s +%d", strings.Join(open[:3], ", "), len(open)-3)
-	}
-}
-
-// syncSelection keeps selIP pointing at the same host as rows move.
-func (a *app) syncSelection(visible []model.Host) {
-	if a.selRow >= 0 && a.selRow < len(visible) {
-		a.selIP = visible[a.selRow].IP
-		return
-	}
-	a.selRow = -1
-	if a.selIP.IsValid() {
-		for i, h := range visible {
-			if h.IP == a.selIP {
-				a.selRow = i
-				break
-			}
-		}
-	}
-	if a.selRow < 0 {
-		a.selIP = netip.Addr{}
-	}
 }
 
 func (a *app) onlineCount() int {

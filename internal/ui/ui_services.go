@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -51,30 +52,26 @@ func serviceLabel(s model.Service) string {
 
 // serviceSection lists what the selected host advertises over the
 // network's service discovery, with the same next steps as port rows.
-func (a *app) serviceSection(c *ui.Context, h model.Host) {
+func (a *app) serviceSection(c *ui.Context, t *ui.Theme, h model.Host) {
 	if len(h.Services) == 0 {
 		return
 	}
-	t := c.Theme()
-	ui.Textf(c, "这台设备自报了 %d 项服务", len(h.Services)).FontSize(12).TextColor(t.TextMuted).Shrink(0)
-	for _, sv := range h.Services {
-		ui.Row(c).Height(28).AlignItems(ui.Center).Gap(6).Shrink(0).Children(func() {
-			ui.Text(c, serviceLabel(sv)).Width(76).SingleLine().FontSize(12)
-			if sv.Port > 0 {
-				ui.Textf(c, "%d", sv.Port).Font("monospace").Width(52).TextAlign(ui.End).
-					FontSize(12).TextColor(t.Text)
-			} else {
-				ui.Box(c).Width(52)
+	section(c, t, "设备服务", fmt.Sprintf("自报 %d 项", len(h.Services)), func() {
+		for i, sv := range h.Services {
+			if i > 0 {
+				ui.Divider(c).Shrink(0)
 			}
-			ui.Box(c).Grow(1)
-			if sv.Port > 0 {
-				for _, act := range portActions(h.IP, model.Port{Number: sv.Port, Service: mdnsShort(sv)}) {
-					btn := ui.Button(c, act.Label).FontSize(12)
-					if btn.Clicked() {
-						runPortAction(c, act)
+			ui.Row(c).Height(34).Padding(0, 8, 0, 12).AlignItems(ui.Center).Gap(8).Children(func() {
+				ui.Text(c, serviceLabel(sv)).SingleLine().FontSize(13)
+				ui.Box(c).Grow(1)
+				if sv.Port > 0 {
+					ui.Textf(c, "%d", sv.Port).FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted)
+					acts := portActions(h.IP, model.Port{Number: sv.Port, Service: mdnsShort(sv)})
+					if flatButton(c, acts[0].Label).Clicked() {
+						runPortAction(c, acts[0])
 					}
 				}
-			}
-		})
-	}
+			})
+		}
+	})
 }
