@@ -18,7 +18,7 @@ import (
 func TestSweepPortsProbing(t *testing.T) {
 	a := newApp()
 	release := make(chan struct{})
-	a.scanPorts = func(ctx context.Context, ip netip.Addr, ports []int) ([]model.Port, error) {
+	a.scanPorts = func(ctx context.Context, src, ip netip.Addr, ports []int) ([]model.Port, error) {
 		<-release
 		return []model.Port{{Number: 80, Open: true, Service: "http"}}, nil
 	}
@@ -54,7 +54,7 @@ func TestSweepPortsProbing(t *testing.T) {
 func TestSweepPorts(t *testing.T) {
 	a := newApp()
 	var calls atomic.Int32
-	a.scanPorts = func(ctx context.Context, ip netip.Addr, ports []int) ([]model.Port, error) {
+	a.scanPorts = func(ctx context.Context, src, ip netip.Addr, ports []int) ([]model.Port, error) {
 		calls.Add(1)
 		return []model.Port{{Number: 80, Open: true, Service: "http"}}, nil
 	}
@@ -88,7 +88,7 @@ func TestSweepPorts(t *testing.T) {
 func TestSweptPortsInDetail(t *testing.T) {
 	a := newApp()
 	var calls atomic.Int32
-	a.scanPorts = func(ctx context.Context, ip netip.Addr, ports []int) ([]model.Port, error) {
+	a.scanPorts = func(ctx context.Context, src, ip netip.Addr, ports []int) ([]model.Port, error) {
 		calls.Add(1)
 		return nil, nil
 	}
@@ -131,7 +131,7 @@ func TestPortsSurviveHostUpdatesAndSwitching(t *testing.T) {
 		return netip.MustParseAddr("192.168.1.1"), netip.MustParseAddr("192.168.1.254")
 	}
 	a.newScanner = func() scannerIface { return &fakeScanner{} }
-	a.scanPorts = func(ctx context.Context, ip netip.Addr, ports []int) ([]model.Port, error) {
+	a.scanPorts = func(ctx context.Context, src, ip netip.Addr, ports []int) ([]model.Port, error) {
 		return []model.Port{{Number: 80, Open: true, Service: "http"}}, nil
 	}
 	tt := ui.NewTester(a.View, 1240, 800)

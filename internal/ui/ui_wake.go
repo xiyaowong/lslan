@@ -194,10 +194,11 @@ func (a *app) waitWake(ip netip.Addr) {
 	w.waiting, w.waitIP = true, ip
 	w.waitGen++
 	gen := w.waitGen
+	src := a.sourceAddr()
 	go func() {
 		defer cancel()
 		for {
-			if a.wakeProbe(ip) {
+			if a.wakeProbe(src, ip) {
 				a.dispatch(func() {
 					if w.waitGen == gen {
 						a.wakeHeard(ip)

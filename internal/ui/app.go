@@ -63,14 +63,14 @@ type app struct {
 	rangeForNIC func(model.NIC) (netip.Addr, netip.Addr)
 	newScanner  func() scannerIface
 	portPresets func() []scan.Preset
-	scanPorts   func(ctx context.Context, ip netip.Addr, ports []int) ([]model.Port, error)
+	scanPorts   func(ctx context.Context, src, ip netip.Addr, ports []int) ([]model.Port, error)
 	startPingFn func(ctx context.Context, ip netip.Addr) (pingSessionIface, error)
 	newPingTerm func() (pingTerminalIface, error)
 	dialTelnet  func(ip netip.Addr, port int) (net.Conn, error)
 	newTelnet   func(conn net.Conn) (telnetTermIface, error)
 	wakeSend    func(nic model.NIC, mac string) error
 	wakeMac     func(ip netip.Addr) string
-	wakeProbe   func(ip netip.Addr) bool
+	wakeProbe   func(src, ip netip.Addr) bool
 	wakeEvery   time.Duration
 	wakeFor     time.Duration
 
@@ -206,7 +206,7 @@ func newApp() *app {
 		rangeForNIC: scan.RangeForNIC,
 		newScanner:  func() scannerIface { return scan.NewScanner() },
 		portPresets: scan.PortPresets,
-		scanPorts:   scan.ScanPorts,
+		scanPorts:   scan.ScanPortsFrom,
 		startPingFn: func(ctx context.Context, ip netip.Addr) (pingSessionIface, error) {
 			return scan.StartPing(ctx, ip)
 		},
@@ -734,6 +734,7 @@ func (a *app) sweepPorts() {
 	a.portGen++
 	gen := a.portGen
 	preset := a.presets()[0]
+	src := a.sourceAddr()
 	sem := make(chan struct{}, 4)
 	go func() {
 		var wg sync.WaitGroup
@@ -743,7 +744,7 @@ func (a *app) sweepPorts() {
 			go func() {
 				defer wg.Done()
 				defer func() { <-sem }()
-				ports, err := a.scanPorts(context.Background(), ip, preset.Ports)
+				ports, err := a.scanPorts(context.Background(), src, ip, preset.Ports)
 				a.dispatch(func() {
 					if a.portGen != gen {
 						return
@@ -778,11 +779,12 @@ func (a *app) startPortScanPreset(ip netip.Addr, i int) {
 	}
 	preset := ps[i]
 	ctx, cancel := context.WithCancel(context.Background())
+	src := a.sourceAddr()
 	a.portScanning = true
 	a.portIP = ip
 	a.portErr = ""
 	go func() {
-		ports, err := a.scanPorts(ctx, ip, preset.Ports)
+		ports, err := a.scanPorts(ctx, src, ip, preset.Ports)
 		cancel()
 		a.dispatch(func() {
 			a.portScanning = false
@@ -794,6 +796,11 @@ func (a *app) startPortScanPreset(ip netip.Addr, i int) {
 		})
 	}()
 }
+
+// sourceAddr is the address TCP probes bind to: the selected adapter's,
+// so a VPN's TUN adapter cannot take the LAN's connections and answer for
+// devices that are not there (see scan.ScanPortsFrom).
+func (a *app) sourceAddr() netip.Addr { return a.currentNIC().IP }
 
 // visibleHosts lists the table's rows, filtered and sorted per state.
 func (a *app) visibleHosts() []model.Host {

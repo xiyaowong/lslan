@@ -3,9 +3,8 @@
 package scan
 
 import (
-	"net"
+	"context"
 	"net/netip"
-	"strconv"
 	"sync"
 	"time"
 	"unsafe"
@@ -88,11 +87,12 @@ func icmpPing(ip netip.Addr, timeout time.Duration) (rtt time.Duration, ttl int,
 
 var tcpFallbackPorts = []int{80, 443, 445}
 
-// tcpAlive is the liveness fallback when ICMP is unavailable.
-func tcpAlive(ip netip.Addr, perPort time.Duration) bool {
+// tcpAliveFrom is the liveness fallback when ICMP is unavailable: a TCP
+// connect from src, the adapter's address, so a VPN's TUN adapter cannot
+// answer for a device that is not there.
+func tcpAliveFrom(src, ip netip.Addr, perPort time.Duration) bool {
 	for _, p := range tcpFallbackPorts {
-		c, err := net.DialTimeout("tcp", net.JoinHostPort(ip.String(), strconv.Itoa(p)), perPort)
-		if err == nil {
+		if c, err := dialFrom(context.Background(), src, ip, p, perPort); err == nil {
 			c.Close()
 			return true
 		}

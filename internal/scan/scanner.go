@@ -26,13 +26,14 @@ const (
 )
 
 // probeHost decides liveness: ICMP echo when the ICMP device opens,
-// otherwise a TCP connect fallback.
-func probeHost(ip netip.Addr) bool {
+// otherwise a TCP connect fallback made from src, the adapter's address
+// (see tcpAliveFrom).
+func probeHost(src, ip netip.Addr) bool {
 	if icmpAvailable() {
 		_, _, ok := icmpPing(ip, time.Second)
 		return ok
 	}
-	return tcpAlive(ip, arpProbeTimeout)
+	return tcpAliveFrom(src, ip, arpProbeTimeout)
 }
 
 func defaultLookup(ctx context.Context, ip string) (string, error) {
@@ -219,7 +220,7 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 					return
 				}
 				ip := addrFromUint32(lo + uint32(i))
-				if probeHost(ip) {
+				if probeHost(nic.IP, ip) {
 					key := be32(ip)
 					h := &model.Host{IP: ip, State: model.StateOnline, LastSeen: time.Now()}
 					if gatewayValid && key == gateway {
@@ -269,7 +270,7 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 		if ctx.Err() != nil {
 			break
 		}
-		if tcpAlive(addr, arpProbeTimeout) {
+		if tcpAliveFrom(nic.IP, addr, arpProbeTimeout) {
 			h := &model.Host{IP: addrFromUint32(key), State: model.StateOnline, LastSeen: time.Now()}
 			if gatewayValid && key == gateway {
 				h.Gateway = true
