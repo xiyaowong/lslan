@@ -7,7 +7,7 @@ import (
 	"errors"
 	"net"
 	"net/netip"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -211,10 +211,8 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 	}
 
 	var wg sync.WaitGroup
-	for w := 0; w < sweepWorkers; w++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range sweepWorkers {
+		wg.Go(func() {
 			for {
 				i := next.Add(1) - 1
 				if i >= total || ctx.Err() != nil {
@@ -239,7 +237,7 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 				scanned.Add(1)
 				s.emit(ctx, Event{Kind: EventProgress, Progress: progress(total, &scanned, &online)})
 			}
-		}()
+		})
 	}
 	wg.Wait()
 
@@ -293,7 +291,6 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 		}
 		dataMu.Unlock()
 		for _, h := range offlineBackfill(lo, hi, known) {
-			h := h
 			s.emit(ctx, Event{Kind: EventHost, Host: &h})
 		}
 	}
@@ -307,7 +304,7 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 		keys = append(keys, k)
 	}
 	dataMu.Unlock()
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	slices.Sort(keys)
 	for _, k := range keys {
 		s.emit(ctx, Event{Kind: EventHost, Host: snapshotHost(k)})
 	}
@@ -330,10 +327,8 @@ func newHostnames(ctx context.Context) *hostnames {
 // lookup resolves ip in the background and calls back with the name,
 // or "" on failure or cancellation. The callback runs on the lookup
 // goroutine, so wait covers it too.
-func (h *hostnames) lookup(key uint32, ip netip.Addr, cb func(name string)) {
-	h.wg.Add(1)
-	go func() {
-		defer h.wg.Done()
+func (h *hostnames) lookup(_ uint32, ip netip.Addr, cb func(name string)) {
+	h.wg.Go(func() {
 		select {
 		case h.sem <- struct{}{}:
 		case <-h.ctx.Done():
@@ -348,7 +343,7 @@ func (h *hostnames) lookup(key uint32, ip netip.Addr, cb func(name string)) {
 			return
 		}
 		cb(name)
-	}()
+	})
 }
 
 // wait blocks until every in-flight lookup, and its callback, is done.

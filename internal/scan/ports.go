@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/netip"
-	"sort"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -143,6 +143,6 @@ func ScanPorts(ctx context.Context, ip netip.Addr, ports []int) ([]model.Port, e
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	sort.Slice(results, func(i, j int) bool { return results[i].Number < results[j].Number })
+	slices.SortFunc(results, func(a, b model.Port) int { return a.Number - b.Number })
 	return results, nil
 }

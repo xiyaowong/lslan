@@ -32,12 +32,14 @@ func TestClampOctet(t *testing.T) {
 		"25":    "25",
 		"255":   "255",
 		"256":   "25",
+		"259":   "25",
 		"999":   "99",
 		"1234":  "123",
 		"":      "",
 		"abc":   "",
 		"2a5b9": "25",
 		"02a55": "025",
+		"２５":    "",
 	}
 	for in, want := range cases {
 		if got := clampOctet(in); got != want {

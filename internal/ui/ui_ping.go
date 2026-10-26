@@ -36,6 +36,7 @@ func newPingTerminal() (*pingTerminal, error) {
 		Font:       terminal.Font{Size: 12},
 	})
 	if err != nil {
+		p.conn.Close() // wake the conn's waiters; nothing else holds it
 		return nil, err
 	}
 	p.term = t
@@ -62,7 +63,12 @@ func (p *pingTerminal) view(c *ui.Context) ui.Element {
 	return terminal.View(c, p.term)
 }
 
-func (p *pingTerminal) close() { p.term.Close() }
+// close ends the view and wakes the conn's readers; Close is idempotent,
+// so double-closing after a failed New is safe.
+func (p *pingTerminal) close() {
+	p.term.Close()
+	p.conn.Close()
+}
 
 // pingConn stands in for the ping session's program end of the terminal:
 // the terminal reads output from Read; keys the user types arrive at
