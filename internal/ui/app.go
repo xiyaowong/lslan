@@ -163,6 +163,13 @@ type app struct {
 	// the title bar button after that (#46). The engine side follows
 	// through mygo.Theme (AttachWindow).
 	dark bool
+
+	// updater is the app's self-update state (mygo.Updater), driven from
+	// the about popover.
+	updater updateState
+
+	// aboutOpen shows the about popover of the title bar.
+	aboutOpen bool
 }
 
 func newApp() *app {

@@ -1,0 +1,36 @@
+name: Release
+
+# 打 v* tag 即构建发布:更新产物(签名归档、delta、update-*.json)由
+# mygo build -upload 直接传到 draft release,清单是应用内自动更新的
+# feed;人工检查后 publish,更新即对已装用户可见。见 RELEASE.md。
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # the draft release and its files
+
+concurrency:
+  group: release-${{ github.ref }}
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # gh 供 mygo build -upload 传产物;token 供其 API 调用。
+      - name: Build and upload
+        shell: pwsh
+        env:
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: go tool mygo build -upload -platform windows/amd64
+      - name: Publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit ${{ github.ref_name }} --draft=false --latest=false
