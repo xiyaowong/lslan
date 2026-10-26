@@ -106,8 +106,10 @@ func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
 			ui.Text(c, f.label).FontSize(12).Width(64).TextColor(t.TextMuted).Shrink(0)
 			ui.Text(c, orDash(value)).FontSize(13).SingleLine().Tooltip(value)
-			if value != "" {
-				if iconButton(c, "复制"+f.label, "复制", 18, drawCopy).Clicked() {
+			// A MAC is worth copying — router bindings, filters — the
+			// rest of the facts live on the screen that shows them.
+			if f.label == "MAC 地址" && value != "" {
+				if iconButton(c, "复制MAC 地址", "复制", 18, drawCopy).Clicked() {
 					c.WriteClipboard(value)
 					c.Toast("已复制：" + value)
 				}
