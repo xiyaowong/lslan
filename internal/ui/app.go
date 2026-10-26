@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"net"
 	"net/netip"
 	"slices"
 	"strconv"
@@ -63,6 +64,8 @@ type app struct {
 	scanPorts   func(ctx context.Context, ip netip.Addr, ports []int) ([]model.Port, error)
 	startPingFn func(ctx context.Context, ip netip.Addr) (pingSessionIface, error)
 	newPingTerm func() (pingTerminalIface, error)
+	dialTelnet  func(ip netip.Addr, port int) (net.Conn, error)
+	newTelnet   func(conn net.Conn) (telnetTermIface, error)
 
 	// win is nil in tests, where dispatch queues onto pending, drained at
 	// the view's start (goroutine updates must not touch the test goroutine).
@@ -124,6 +127,17 @@ type app struct {
 	pingList   ui.ListState
 	pingTerm   pingTerminalIface
 
+	// Telnet test state (#54): one interactive session at a time, shared
+	// with ping — starting either ends the other, and the pane at the
+	// panel's foot shows the one running for this host. telnetGen drops
+	// a dial the user has since ended.
+	telnetGen     int
+	telnetPending bool
+	telnetIP      netip.Addr
+	telnetPort    int
+	telnetTerm    telnetTermIface
+	telnetErr     string
+
 	// Port scan state.
 	presetNames  []string
 	presetCache  []scan.Preset
@@ -162,6 +176,10 @@ func newApp() *app {
 			return scan.StartPing(ctx, ip)
 		},
 		newPingTerm: newTerminal,
+		dialTelnet: func(ip netip.Addr, port int) (net.Conn, error) {
+			return net.DialTimeout("tcp", netip.AddrPortFrom(ip, uint16(port)).String(), 3*time.Second)
+		},
+		newTelnet: buildTelnetTerm,
 		hosts:       map[netip.Addr]model.Host{},
 		ports:       map[netip.Addr][]model.Port{},
 		selRow:      -1,
@@ -219,7 +237,7 @@ func (a *app) AttachWindow(opts mygo.WindowOptions) {
 	})
 	opts.Content = ui.View(a.View)
 	a.win = mygo.NewWindow(opts)
-	a.win.OnClosed(func() { a.stopPing() })
+	a.win.OnClosed(func() { a.stopPing() }) // ends the telnet test too
 	go a.loadNICs()
 }
 
@@ -480,6 +498,7 @@ func (a *app) applyEvent(ev scan.Event) {
 // pingGen. Safe to call with no session running.
 func (a *app) stopPing() {
 	a.pingGen++
+	a.stopTelnet() // the terminal pane holds one interactive session
 	if a.pingCancel != nil {
 		cancel := a.pingCancel
 		a.pingCancel = nil
@@ -556,6 +575,53 @@ func (a *app) feedPing(line string, ok bool) {
 	if a.pingTerm != nil {
 		a.pingTerm.feed(line, ok)
 	}
+}
+
+// startTelnet opens the one-click test of a telnet port (#54): the
+// device is dialed off the interface so a slow or dead one never freezes
+// it, and the session lands in the panel's terminal pane when it answers.
+func (a *app) startTelnet(ip netip.Addr, port int) {
+	a.stopPing()
+	a.telnetGen++
+	gen := a.telnetGen
+	a.telnetIP, a.telnetPort = ip, port
+	a.telnetPending, a.telnetErr = true, ""
+	go func() {
+		conn, err := a.dialTelnet(ip, port)
+		a.dispatch(func() {
+			if a.telnetGen != gen {
+				if conn != nil {
+					conn.Close()
+				}
+				return // ended while dialing
+			}
+			a.telnetPending = false
+			if err != nil {
+				a.telnetErr = "连接失败，设备可能没开远程登录或拒绝了连接"
+				return
+			}
+			term, err := a.newTelnet(conn)
+			if err != nil {
+				conn.Close()
+				a.telnetErr = "打不开实时输出窗口，无法测试"
+				return
+			}
+			a.telnetTerm = term
+			term.setDark(a.dark)
+		})
+	}()
+}
+
+// stopTelnet ends the test and clears its pane; safe with none running.
+func (a *app) stopTelnet() {
+	a.telnetGen++
+	if a.telnetTerm != nil {
+		a.telnetTerm.close()
+		a.telnetTerm = nil
+	}
+	a.telnetPending = false
+	a.telnetErr = ""
+	a.telnetIP = netip.Addr{}
 }
 
 // presets caches the engine's port presets.

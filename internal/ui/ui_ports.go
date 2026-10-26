@@ -17,6 +17,7 @@ const (
 	portCopy   portActionKind = iota // put Arg on the clipboard
 	portOpen                         // open Arg in the browser
 	portLaunch                       // start the system program Arg with Args
+	portTelnet                       // open the in-app terminal on the port
 )
 
 // portAction is one next step for an open port. All steps are
@@ -49,6 +50,8 @@ func portActions(ip netip.Addr, p model.Port) []portAction {
 		acts = append(acts, portAction{portCopy, "复制地址", serviceURL("ftp", ip, p.Number), nil})
 	case p.Number == 22 || p.Service == "ssh":
 		acts = append(acts, portAction{portCopy, "复制 SSH 命令", "ssh " + ip.String(), nil})
+	case p.Number == 23 || p.Service == "telnet":
+		acts = append(acts, portAction{portTelnet, "连接测试", ip.String(), nil})
 	case p.Number == 3389:
 		acts = append(acts, portAction{portLaunch, "远程桌面", "mstsc.exe", []string{"/v:" + ip.String()}})
 	}
@@ -91,6 +94,8 @@ func portLabel(p model.Port) string {
 		return "文件传输"
 	case p.Number == 22 || p.Service == "ssh":
 		return "远程登录"
+	case p.Number == 23 || p.Service == "telnet":
+		return "远程终端"
 	case p.Number == 80 || p.Number == 8080 || p.Number == 443 || p.Number == 8443 ||
 		p.Service == "http" || p.Service == "https":
 		return "网页"
