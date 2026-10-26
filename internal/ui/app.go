@@ -180,12 +180,12 @@ func newApp() *app {
 			return net.DialTimeout("tcp", netip.AddrPortFrom(ip, uint16(port)).String(), 3*time.Second)
 		},
 		newTelnet: buildTelnetTerm,
-		hosts:       map[netip.Addr]model.Host{},
-		ports:       map[netip.Addr][]model.Port{},
-		selRow:      -1,
-		lastCell:    -1,
-		sort:        ui.SortOrder{Column: "ip"},
-		cardWidth:   cardWidthDefault,
+		hosts:     map[netip.Addr]model.Host{},
+		ports:     map[netip.Addr][]model.Port{},
+		selRow:    -1,
+		lastCell:  -1,
+		sort:      ui.SortOrder{Column: "ip"},
+		cardWidth: cardWidthDefault,
 	}
 	a.tree.List = ui.ListState{Selected: &a.selRow, Sort: &a.sort}
 	a.pingList = ui.ListState{FollowEnd: true}

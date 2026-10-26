@@ -30,17 +30,17 @@ func main() {
 	mygo.App.WhenReady(func() {
 		w, h := windowSize(mygo.Screen.PrimaryDisplay().WorkArea.Width, mygo.Screen.PrimaryDisplay().WorkArea.Height)
 		a.AttachWindow(mygo.WindowOptions{
-			Title: "局域网 IP 扫描",
-			Width: w,
+			Title:  "局域网 IP 扫描",
+			Width:  w,
 			Height: h,
 			// The size is fixed: no maximize button and no resizing (#47).
 			// The system caption is hidden because it would show a disabled
 			// maximize button rather than none; the view draws its own
 			// minimize and close (ui_titlebar.go).
-			TitleBarStyle:    mygo.TitleBarHidden,
-			TitleBarHeight:   44,
-			DisableResize:    true,
-			DisableMaximize:  true,
+			TitleBarStyle:     mygo.TitleBarHidden,
+			TitleBarHeight:    44,
+			DisableResize:     true,
+			DisableMaximize:   true,
 			HideWindowButtons: true,
 			// Both appearances' ground, so the flash while the view loads
 			// never shows the other one's (#46).
