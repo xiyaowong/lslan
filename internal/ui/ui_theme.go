@@ -30,8 +30,6 @@ func appTheme(dark bool) *ui.Theme {
 		t.Selection = ui.RGBA(76, 194, 255, 0.28)
 		t.Focus = ui.RGBA(76, 194, 255, 0.65)
 		t.Scrollbar = ui.RGBA(255, 255, 255, 0.28)
-		t.Inverse = ui.Hex("#f0f0f0")
-		t.InverseText = ui.Hex("#17191c")
 	} else {
 		t.Background = ui.Hex("#f2f4f7")
 		t.Surface = ui.Hex("#ffffff")
@@ -50,13 +48,16 @@ func appTheme(dark bool) *ui.Theme {
 		t.Selection = ui.RGBA(0, 95, 184, 0.22)
 		t.Focus = ui.RGBA(0, 95, 184, 0.6)
 		t.Scrollbar = ui.RGBA(0, 0, 0, 0.22)
-		t.Inverse = ui.Hex("#2b2b2b")
-		t.InverseText = ui.Hex("#ffffff")
 	}
 	t.Radius = 4
 	// 4.5 puts table rows at 36px while keeping controls compact.
 	t.Spacing = 4.5
 	t.FontSize = 13
+	// Toasts ride the theme's inverse pair; Fluent's toast layer is the
+	// same dark acrylic in both appearances, so a dark one never sits as
+	// a white flash on the charcoal ground.
+	t.Inverse = ui.Hex("#2b2b2b")
+	t.InverseText = ui.Hex("#ffffff")
 	return t
 }
 
