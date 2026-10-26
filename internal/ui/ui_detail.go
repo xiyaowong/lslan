@@ -47,10 +47,12 @@ func (a *app) detailHeader(c *ui.Context, t *ui.Theme, h model.Host) {
 		if h.Gateway || h.ViaMDNS {
 			ui.Row(c).Gap(6).Children(func() {
 				if h.Gateway {
-					pill(c, "网关", accentBlue, ui.Hex("#ffffff"))
+					bg, fg := gatewayPill(t)
+					pill(c, "网关", bg, fg)
 				}
 				if h.ViaMDNS {
-					pill(c, "服务发现", softPillBG, softPillText)
+					bg, fg := softPill(t)
+					pill(c, "服务发现", bg, fg)
 				}
 			})
 		}

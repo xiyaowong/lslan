@@ -23,10 +23,12 @@ func flatButton(c *ui.Context, label string) ui.Element {
 }
 
 // iconButton is a small square button showing only an icon, named for
-// assistive technology and its tooltip.
-func iconButton(c *ui.Context, name string, draw func(p *ui.Painter, r ui.Rect)) ui.Element {
+// assistive technology and its tooltip. draw gets the ink of the current
+// theme, so its glyph follows the appearance.
+func iconButton(c *ui.Context, name string, draw func(p *ui.Painter, r ui.Rect, ink ui.Color)) ui.Element {
 	b := ui.ButtonBase(c).Size(24, 24).Radius(4).Shrink(0).Label(name).Tooltip(name)
-	b.Draw(draw)
+	ink := iconInk(c.Theme())
+	b.Draw(func(p *ui.Painter, r ui.Rect) { draw(p, r, ink) })
 	return flatFace(c, b)
 }
 
@@ -46,22 +48,22 @@ func flatFace(c *ui.Context, b ui.Element) ui.Element {
 }
 
 // drawClose draws an × of an icon button.
-func drawClose(p *ui.Painter, r ui.Rect) {
+func drawClose(p *ui.Painter, r ui.Rect, ink ui.Color) {
 	d := min(r.W, r.H) * 0.28
 	cx, cy := r.X+r.W/2, r.Y+r.H/2
 	var path ui.Path
 	path.MoveTo(cx-d, cy-d).LineTo(cx+d, cy+d).MoveTo(cx+d, cy-d).LineTo(cx-d, cy+d)
-	p.StrokePath(&path, 1.3, closeInk)
+	p.StrokePath(&path, 1.3, ink)
 }
 
 // drawCopy draws two overlapping sheets, the copy of an icon button.
-func drawCopy(p *ui.Painter, r ui.Rect) {
+func drawCopy(p *ui.Painter, r ui.Rect, ink ui.Color) {
 	s := min(r.W, r.H) * 0.26
 	cx, cy := r.X+r.W/2, r.Y+r.H/2
 	var back, front ui.Path
 	back.MoveTo(cx-s*0.6, cy-s).LineTo(cx+s, cy-s).LineTo(cx+s, cy+s*0.6)
 	front.MoveTo(cx-s, cy-s*0.6).LineTo(cx+s*0.6, cy-s*0.6).
 		LineTo(cx+s*0.6, cy+s).LineTo(cx-s, cy+s).Close()
-	p.StrokePath(&back, 1.2, closeInk)
-	p.StrokePath(&front, 1.2, closeInk)
+	p.StrokePath(&back, 1.2, ink)
+	p.StrokePath(&front, 1.2, ink)
 }

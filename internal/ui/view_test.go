@@ -47,6 +47,8 @@ func (f *fakePingTerminal) feed(line string, ok bool) {
 	f.lines = append(f.lines, line)
 }
 
+func (f *fakePingTerminal) setDark(bool) {}
+
 func (f *fakePingTerminal) view(c *ui.Context) ui.Element {
 	return ui.Column(c).Gap(2).Children(func() {
 		for _, l := range f.lines {

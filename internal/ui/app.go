@@ -144,6 +144,11 @@ type app struct {
 	// logo is the app icon drawn into the title bar, nil if none given
 	// or it failed to decode.
 	logo *ui.Bitmap
+
+	// dark is the appearance shown: the system's at launch, flipped by
+	// the title bar button after that (#46). The engine side follows
+	// through mygo.Theme (AttachWindow).
+	dark bool
 }
 
 func newApp() *app {
@@ -203,10 +208,41 @@ func NewApp(iconPNG []byte) *app {
 
 // AttachWindow binds the app to the main window and starts NIC loading.
 func (a *app) AttachWindow(opts mygo.WindowOptions) {
+	// The appearance starts as the system's: the source stays ThemeSystem
+	// until the user picks one, so the system keeps leading until then.
+	a.dark = mygo.Theme.IsDark()
+	mygo.Theme.OnUpdated(func() {
+		if mygo.Theme.Source() != mygo.ThemeSystem {
+			return
+		}
+		a.dispatch(func() { a.setDark(mygo.Theme.IsDark()) })
+	})
 	opts.Content = ui.View(a.View)
 	a.win = mygo.NewWindow(opts)
 	a.win.OnClosed(func() { a.stopPing() })
 	go a.loadNICs()
+}
+
+// toggleTheme flips the appearance and holds it there: the button has the
+// two states and no "follow the system" one, so the choice is an explicit
+// override from the first click on (#46).
+func (a *app) toggleTheme() {
+	dark := !a.dark
+	a.setDark(dark)
+	if dark {
+		mygo.Theme.SetSource(mygo.ThemeDark)
+	} else {
+		mygo.Theme.SetSource(mygo.ThemeLight)
+	}
+}
+
+// setDark shows the given appearance; the terminal, which paints itself,
+// is told apart from the theme.
+func (a *app) setDark(dark bool) {
+	a.dark = dark
+	if a.pingTerm != nil {
+		a.pingTerm.setDark(dark)
+	}
 }
 
 // loadNICs reads the machine's adapters and selects the first one.
@@ -467,6 +503,7 @@ func (a *app) startPing(ip netip.Addr) {
 	a.pingStats = pingStats{}
 	if term, err := a.newPingTerm(); err == nil {
 		a.pingTerm = term
+		term.setDark(a.dark)
 		term.feed("正在 Ping "+ip.String()+":", true)
 	} else {
 		// No terminal: say so in the line list, which must then show every
