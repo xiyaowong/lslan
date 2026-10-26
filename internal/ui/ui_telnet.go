@@ -64,11 +64,11 @@ type telnetLink struct {
 
 // Negotiation parsing states.
 const (
-	telnetData = iota // in plain output
-	telnetIAC         // after IAC, the command byte next
-	telnetOpt         // after WILL/WONT/DO/DONT, the option byte next
-	telnetSub         // in a subnegotiation, until IAC SE
-	telnetSubIAC      // in one, after its IAC
+	telnetData   = iota // in plain output
+	telnetIAC           // after IAC, the command byte next
+	telnetOpt           // after WILL/WONT/DO/DONT, the option byte next
+	telnetSub           // in a subnegotiation, until IAC SE
+	telnetSubIAC        // in one, after its IAC
 )
 
 // Telnet protocol bytes.

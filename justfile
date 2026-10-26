@@ -10,31 +10,24 @@ default:
 dev:
     go tool mygo dev
 
-# 全量检查:格式、静态检查、测试、构建
+# 全量检查:格式、静态检查、测试
 check:
     gofmt -l .
     go vet ./...
     go test ./...
 
-# 构建发布产物到 build/windows-amd64/
+# 构建发布产物到 build/windows-amd64/(含 ghostty-vt.dll,终端插件运行时要挨着 exe)
 build:
     go tool mygo build
 
-# 构建并运行固定路径的测试 exe(路径不变,防火墙授权一次即可,无人值守也点得过去)
-# 默认关掉 mDNS:它占一个 UDP 口和组播组,多个任务同时跑会抢;要验发现功能用 just run-mdns
-run:
+# 快速试跑:构建到固定路径再启动(防火墙授权按 exe 路径记,固定路径授权一次)
+# 传 run=mdns 保留 mDNS:它占一个 UDP 口和组播组,并发跑会抢
+run *args='':
     New-Item -ItemType Directory -Force build/test | Out-Null
+    try { $dll = Get-ChildItem "$env:LOCALAPPDATA\mygo\natives\*\ghostty-vt.dll" | Select-Object -First 1 } catch {}
+    if ($dll -and -not (Test-Path build/test/ghostty-vt.dll)) { Copy-Item $dll.FullName build/test/ }
     go build -o build/test/lslan-test.exe .
-    If (Test-Path build/windows-amd64/ghostty-vt.dll) { Copy-Item build/windows-amd64/ghostty-vt.dll build/test/ -Force }
-    $env:LSLAN_MDNS = "0"
-    Start-Process build/test/lslan-test.exe
-
-# 同上,但保留 mDNS(只在开发发现/服务识别相关功能时用)
-run-mdns:
-    New-Item -ItemType Directory -Force build/test | Out-Null
-    go build -o build/test/lslan-test.exe .
-    If (Test-Path build/windows-amd64/ghostty-vt.dll) { Copy-Item build/windows-amd64/ghostty-vt.dll build/test/ -Force }
-    Remove-Item Env:\LSLAN_MDNS -ErrorAction SilentlyContinue
+    if ("{{args}}" -eq "mdns") { if (Test-Path Env:\LSLAN_MDNS) { Remove-Item Env:\LSLAN_MDNS } } else { $env:LSLAN_MDNS = "0" }
     Start-Process build/test/lslan-test.exe
 
 # 清理构建产物
