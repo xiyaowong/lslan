@@ -55,7 +55,7 @@ func TestDefaultWindowLayout(t *testing.T) {
 				t.Errorf("%dx%d: the panel runs past the window", size.w, size.h)
 			}
 			// Every action and fact fits the panel's width, unclipped.
-			for _, text := range []string{"Ping", "端口扫描", "浏览器打开", "更多", "MAC 地址", "上次在线"} {
+			for _, text := range []string{"Ping", "端口", "网页", "路由", "更多", "MAC 地址", "上次在线"} {
 				r, ok := tt.Find(text)
 				if !ok {
 					t.Errorf("%dx%d: %q is missing from the panel", size.w, size.h, text)

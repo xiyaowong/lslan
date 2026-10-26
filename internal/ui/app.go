@@ -140,6 +140,17 @@ type app struct {
 	telnetTerm    telnetTermIface
 	telnetErr     string
 
+	// Route trace state: one run at a time, its process killed on stop.
+	// traceGen drops output of a run the user has since restarted; the
+	// pane shows the hops as they land and the ✕ once the run ends.
+	traceGen     int
+	traceCancel  context.CancelFunc
+	traceIP      netip.Addr
+	traceLines   []string
+	traceDone    bool
+	traceTerm    pingTerminalIface
+	traceStarter traceStarter
+
 	// Port scan state.
 	presetNames  []string
 	presetCache  []scan.Preset
@@ -509,6 +520,7 @@ func (a *app) applyEvent(ev scan.Event) {
 func (a *app) stopPing() {
 	a.pingGen++
 	a.stopTelnet() // the terminal pane holds one interactive session
+	a.stopTrace()  // so does the route trace
 	if a.pingCancel != nil {
 		cancel := a.pingCancel
 		a.pingCancel = nil
@@ -604,6 +616,7 @@ func (a *app) feedPing(line string, ok bool) {
 // it, and the session lands in the panel's terminal pane when it answers.
 func (a *app) startTelnet(ip netip.Addr, port int) {
 	a.stopPing()
+	a.stopTrace()
 	a.telnetGen++
 	gen := a.telnetGen
 	a.telnetIP, a.telnetPort = ip, port

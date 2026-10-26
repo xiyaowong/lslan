@@ -39,6 +39,10 @@ func (a *app) detail(c *ui.Context) {
 			ui.Divider(c).Shrink(0)
 			a.telnetPane(c, t)
 		}
+		if a.traceVisible(h.IP) {
+			ui.Divider(c).Shrink(0)
+			a.tracePane(c, t)
+		}
 	})
 }
 
@@ -127,11 +131,23 @@ func (a *app) detailActions(c *ui.Context, h model.Host) {
 				a.startPing(h.IP)
 			}
 		}
-		if btn := smallButton(c, "端口扫描").Disabled(a.portScanning); !a.portScanning && btn.Clicked() {
+		if btn := smallButton(c, "端口").Disabled(a.portScanning); !a.portScanning && btn.Clicked() {
 			a.startPortScan(h.IP)
 		}
-		if smallButton(c, "浏览器打开").Clicked() {
+		if smallButton(c, "网页").Clicked() {
 			c.OpenURL("http://" + h.IP.String())
+		}
+		tracing := a.traceCancel != nil && a.traceIP == h.IP
+		traceLabel := "路由"
+		if tracing {
+			traceLabel = "停止跟踪"
+		}
+		if smallButton(c, traceLabel).Clicked() {
+			if tracing {
+				a.stopTrace()
+			} else {
+				a.traceRoute(h.IP)
+			}
 		}
 		more := flatButton(c, "更多")
 		if more.Clicked() {
