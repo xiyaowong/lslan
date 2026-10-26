@@ -36,26 +36,26 @@ func portActions(ip netip.Addr, p model.Port) []portAction {
 	share := `\\` + ip.String()
 	switch {
 	case p.Number == 80 || p.Number == 8080 || p.Service == "http":
-		acts = append(acts, portAction{portOpen, "打开管理页", serviceURL("http", ip, p.Number), nil})
+		acts = append(acts, portAction{portOpen, "打开", serviceURL("http", ip, p.Number), nil})
 	case p.Number == 443 || p.Number == 8443 || p.Service == "https":
-		acts = append(acts, portAction{portOpen, "打开管理页", serviceURL("https", ip, p.Number), nil})
+		acts = append(acts, portAction{portOpen, "打开", serviceURL("https", ip, p.Number), nil})
 	case p.Number == 554 || p.Number == 8554 || p.Number == 10554 || p.Service == "rtsp":
 		acts = append(acts, portAction{portCopy, "复制流地址", serviceURL("rtsp", ip, p.Number), nil})
 	case p.Number == 445 || p.Number == 139:
 		acts = append(acts,
-			portAction{portLaunch, "打开文件共享", "explorer.exe", []string{share}},
-			portAction{portCopy, "复制共享路径", share, nil},
+			portAction{portLaunch, "打开", "explorer.exe", []string{share}},
+			portAction{portCopy, "复制路径", share, nil},
 		)
 	case p.Number == 21 || p.Service == "ftp":
 		acts = append(acts, portAction{portCopy, "复制地址", serviceURL("ftp", ip, p.Number), nil})
 	case p.Number == 22 || p.Service == "ssh":
-		acts = append(acts, portAction{portCopy, "复制 SSH 命令", "ssh " + ip.String(), nil})
+		acts = append(acts, portAction{portCopy, "复制命令", "ssh " + ip.String(), nil})
 	case p.Number == 23 || p.Service == "telnet":
 		acts = append(acts, portAction{portTelnet, "连接测试", ip.String(), nil})
 	case p.Number == 3389:
 		acts = append(acts, portAction{portLaunch, "远程桌面", "mstsc.exe", []string{"/v:" + ip.String()}})
 	}
-	acts = append(acts, portAction{portCopy, "复制端口",
+	acts = append(acts, portAction{portCopy, "复制",
 		fmt.Sprintf("端口 %d（%s）", p.Number, portLabel(p)), nil})
 	return acts
 }

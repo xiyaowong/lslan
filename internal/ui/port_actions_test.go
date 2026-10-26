@@ -32,22 +32,22 @@ func TestPortActions(t *testing.T) {
 		want []portAction // first entries; the generic copy ends every row
 	}{
 		{model.Port{Number: 80, Service: "http", Open: true},
-			[]portAction{{portOpen, "打开管理页", "http://192.168.1.5", nil}}},
+			[]portAction{{portOpen, "打开", "http://192.168.1.5", nil}}},
 		{model.Port{Number: 8080, Service: "http", Open: true},
-			[]portAction{{portOpen, "打开管理页", "http://192.168.1.5:8080", nil}}},
+			[]portAction{{portOpen, "打开", "http://192.168.1.5:8080", nil}}},
 		{model.Port{Number: 443, Service: "https", Open: true},
-			[]portAction{{portOpen, "打开管理页", "https://192.168.1.5", nil}}},
+			[]portAction{{portOpen, "打开", "https://192.168.1.5", nil}}},
 		{model.Port{Number: 554, Service: "rtsp", Open: true},
 			[]portAction{{portCopy, "复制流地址", "rtsp://192.168.1.5/", nil}}},
 		{model.Port{Number: 8554, Service: "rtsp", Open: true},
 			[]portAction{{portCopy, "复制流地址", "rtsp://192.168.1.5:8554/", nil}}},
 		{model.Port{Number: 445, Service: "microsoft-ds", Open: true},
-			[]portAction{{portLaunch, "打开文件共享", "explorer.exe", []string{`\\192.168.1.5`}},
-				{portCopy, "复制共享路径", `\\192.168.1.5`, nil}}},
+			[]portAction{{portLaunch, "打开", "explorer.exe", []string{`\\192.168.1.5`}},
+				{portCopy, "复制路径", `\\192.168.1.5`, nil}}},
 		{model.Port{Number: 21, Service: "ftp", Open: true},
 			[]portAction{{portCopy, "复制地址", "ftp://192.168.1.5", nil}}},
 		{model.Port{Number: 22, Service: "ssh", Open: true},
-			[]portAction{{portCopy, "复制 SSH 命令", "ssh 192.168.1.5", nil}}},
+			[]portAction{{portCopy, "复制命令", "ssh 192.168.1.5", nil}}},
 		{model.Port{Number: 23, Service: "telnet", Open: true},
 			[]portAction{{portTelnet, "连接测试", "192.168.1.5", nil}}},
 		{model.Port{Number: 3389, Service: "ms-wbt-server", Open: true},
@@ -58,8 +58,8 @@ func TestPortActions(t *testing.T) {
 	for _, c := range cases {
 		got := portActions(addr, c.port)
 		last := len(got) - 1
-		if got[last].Label != "复制端口" || got[last].Kind != portCopy {
-			t.Errorf("port %d: last action = %+v, want the generic 复制端口", c.port.Number, got[last])
+		if got[last].Label != "复制" || got[last].Kind != portCopy {
+			t.Errorf("port %d: last action = %+v, want the generic 复制", c.port.Number, got[last])
 			continue
 		}
 		if len(got)-1 != len(c.want) {
