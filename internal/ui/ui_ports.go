@@ -60,16 +60,19 @@ func portActions(ip netip.Addr, p model.Port) []portAction {
 	return acts
 }
 
-// runPortAction performs one mapped action; a failed launch is silent,
-// there is nothing to clean up.
+// runPortAction performs one mapped action, saying what it did; a
+// failed launch is silent, there is nothing to clean up.
 func runPortAction(c *ui.Context, act portAction) {
 	switch act.Kind {
 	case portCopy:
 		c.WriteClipboard(act.Arg)
+		c.Toast("已复制：" + act.Arg)
 	case portOpen:
 		c.OpenURL(act.Arg)
+		c.Toast("已在浏览器打开 " + act.Arg)
 	case portLaunch:
 		_ = exec.Command(act.Arg, act.Args...).Start()
+		c.Toast("已打开系统程序处理")
 	}
 }
 

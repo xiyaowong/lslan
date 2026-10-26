@@ -109,10 +109,11 @@ func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
 			if value != "" {
 				if iconButton(c, "复制"+f.label, "复制", 18, drawCopy).Clicked() {
 					c.WriteClipboard(value)
+					c.Toast("已复制：" + value)
 				}
 			}
 			if f.label == "主机名" {
-				a.netbiosAsk(c, h)
+				a.netbiosAsk(c, t, h)
 			}
 		})
 	}
@@ -153,9 +154,11 @@ func (a *app) detailActions(c *ui.Context, h model.Host) {
 		}
 		if smallButton(c, "浏览共享").Clicked() {
 			_ = exec.Command("explorer.exe", `\\`+h.IP.String()).Start()
+			c.Toast("正在打开 \\\\" + h.IP.String())
 		}
 		if smallButton(c, "浏览器打开").Clicked() {
 			c.OpenURL("http://" + h.IP.String())
+			c.Toast("已在浏览器打开 http://" + h.IP.String())
 		}
 		more := flatButton(c, "更多")
 		if more.Clicked() {
@@ -347,6 +350,7 @@ func (a *app) portRow(c *ui.Context, t *ui.Theme, ip netip.Addr, p model.Port) {
 		}
 		if iconButton(c, "复制端口", "复制", 18, drawCopy).Clicked() {
 			c.WriteClipboard(acts[len(acts)-1].Arg)
+			c.Toast("已复制：" + acts[len(acts)-1].Arg)
 		}
 	})
 }
