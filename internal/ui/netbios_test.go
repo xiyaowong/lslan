@@ -65,6 +65,9 @@ func TestNetBIOSLookup(t *testing.T) {
 	if got := a.hosts[host].Hostname; got != "MYPRINTER" {
 		t.Errorf("hostname = %q, want MYPRINTER", got)
 	}
+	if a.netbios.note != "MYPRINTER" || a.netbios.failed {
+		t.Errorf("note = %q failed=%v, want the name without failure", a.netbios.note, a.netbios.failed)
+	}
 
 	// The button is gone once the name is there, and an existing name
 	// never gets overwritten.
@@ -99,6 +102,9 @@ func TestNetBIOSMiss(t *testing.T) {
 	a.runPending()
 	if got := a.hosts[host].Hostname; got != "" {
 		t.Errorf("hostname = %q after a miss, want empty", got)
+	}
+	if !a.netbios.failed || a.netbios.note == "" {
+		t.Errorf("note = %q failed=%v, want a failure note", a.netbios.note, a.netbios.failed)
 	}
 	// The ask is available again for another try.
 	tt.Frame()

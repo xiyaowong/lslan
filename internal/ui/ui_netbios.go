@@ -45,15 +45,20 @@ func netbiosName(out string) string {
 }
 
 // netbiosState is the one-at-a-time query for the selected device's
-// NetBIOS name; it fills a missing hostname and never overwrites one.
+// NetBIOS name. The outcome — the name, a miss, or the failure — shows
+// at the ask button until it is answered by a hostname, so a click is
+// never without an answer (#83).
 type netbiosState struct {
 	starter netbiosStarter
 	busy    bool
 	gen     int
+	// note says how the last ask went, in words a user can act on.
+	note   string
+	failed bool
 }
 
 // netbiosLookup asks ip for its NetBIOS name off-thread; the answer
-// lands in the host when it has no hostname yet.
+// fills a missing hostname and reports itself at the button.
 func (a *app) netbiosLookup(ip netip.Addr) {
 	nb := &a.netbios
 	if nb.busy {
@@ -63,6 +68,7 @@ func (a *app) netbiosLookup(ip netip.Addr) {
 		nb.starter = realNetBIOS
 	}
 	nb.busy = true
+	nb.note, nb.failed = "", false
 	nb.gen++
 	gen := nb.gen
 	go func() {
@@ -71,31 +77,48 @@ func (a *app) netbiosLookup(ip netip.Addr) {
 		out, err := nb.starter(ctx, ip)
 		a.dispatch(func() {
 			nb.busy = false
-			if nb.gen != gen || err != nil {
+			if nb.gen != gen {
 				return
 			}
-			name := netbiosName(out)
-			if name == "" {
-				return
-			}
-			if h, ok := a.hosts[ip]; ok && h.Hostname == "" {
-				h.Hostname = name
-				a.hosts[ip] = h
+			switch {
+			case err != nil:
+				nb.note, nb.failed = "没有问到（设备可能不响应 NetBIOS）", true
+			case netbiosName(out) == "":
+				nb.note, nb.failed = "设备没有报出名字", true
+			default:
+				name := netbiosName(out)
+				nb.note, nb.failed = name, false
+				if h, ok := a.hosts[ip]; ok && h.Hostname == "" {
+					h.Hostname = name
+					a.hosts[ip] = h
+				}
 			}
 		})
 	}()
 }
 
 // netbiosAsk is the detail panel's way to ask a hostname-less device
-// for its NetBIOS name: the ask button at the facts' hostname row.
-func (a *app) netbiosAsk(c *ui.Context, h model.Host) {
+// for its NetBIOS name: the ask at the facts' hostname row, with the
+// query running, its outcome, or the ask itself beside the name.
+func (a *app) netbiosAsk(c *ui.Context, t *ui.Theme, h model.Host) {
 	if h.Hostname != "" {
 		return
 	}
-	if a.netbios.busy {
-		return
-	}
-	if flatButton(c, "NetBIOS 问名").Clicked() {
-		a.netbiosLookup(h.IP)
+	nb := &a.netbios
+	switch {
+	case nb.busy:
+		ui.Spinner(c)
+		ui.Text(c, "正在询问…").FontSize(12).TextColor(t.TextMuted)
+	default:
+		if flatButton(c, "NetBIOS 问名").Clicked() {
+			a.netbiosLookup(h.IP)
+		}
+		if nb.note != "" {
+			color := t.TextMuted
+			if nb.failed {
+				color = t.Danger
+			}
+			ui.Text(c, nb.note).FontSize(12).TextColor(color)
+		}
 	}
 }
