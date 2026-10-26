@@ -147,6 +147,7 @@ type app struct {
 	traceCancel  context.CancelFunc
 	traceIP      netip.Addr
 	traceLines   []string
+	traceList    ui.ListState
 	traceDone    bool
 	traceTerm    pingTerminalIface
 	traceStarter traceStarter
@@ -548,9 +549,12 @@ func (a *app) closePing() {
 	}
 }
 
-// startPing pings ip, stopping any session still running.
+// startPing pings ip, stopping any session still running. The other
+// tools' panes close whole: the foot holds one output at a time, and
+// two panes of lines would fight for the frame.
 func (a *app) startPing(ip netip.Addr) {
 	a.stopPing()
+	a.closeTrace()
 	ctx, cancel := context.WithCancel(context.Background())
 	a.pingGen++
 	gen := a.pingGen
@@ -621,6 +625,8 @@ func (a *app) feedPing(line string, ok bool) {
 func (a *app) startTelnet(ip netip.Addr, port int) {
 	a.stopPing()
 	a.stopTrace()
+	a.closePing() // the foot holds one output at a time
+	a.closeTrace()
 	a.telnetGen++
 	gen := a.telnetGen
 	a.telnetIP, a.telnetPort = ip, port

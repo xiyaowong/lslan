@@ -102,6 +102,65 @@ func TestTracePane(t *testing.T) {
 	}
 }
 
+// TestToolSwitchClosesPanes: starting one tool clears the other tools'
+// panes, so two line lists never share a frame — the crash of the ping/
+// trace race (#92).
+func TestToolSwitchClosesPanes(t *testing.T) {
+	a := newApp()
+	host := ip("192.168.1.9")
+	a.hosts[host] = model.Host{IP: host, State: model.StateOnline}
+	a.traceStarter = func(ctx context.Context, ip netip.Addr) (io.ReadCloser, func() error, error) {
+		stream := &fakeTraceStream{lines: []string{"hop 1"}, closed: make(chan struct{})}
+		go func() {
+			<-ctx.Done()
+			stream.Close()
+		}()
+		var out io.ReadCloser = stream
+		return out, func() error { return nil }, nil
+	}
+	var cur *fakePingSession
+	a.startPingFn = func(ctx context.Context, ip netip.Addr) (pingSessionIface, error) {
+		cur = &fakePingSession{samples: make(chan model.PingSample, 2)} // fresh per start; the old goroutine keeps its own
+		return cur, nil
+	}
+	tt := ui.NewTester(a.View, 1040, 720)
+	a.selRow, a.selIP = 0, host
+
+	// Ping results on screen, then a trace: the ping pane must be gone.
+	a.startPing(host)
+	cur.samples <- model.PingSample{OK: true, RTT: 2 * time.Millisecond, TTL: 64}
+	deadline := time.Now().Add(time.Second)
+	for a.pingStats.sent < 1 && time.Now().Before(deadline) {
+		a.runPending()
+		time.Sleep(time.Millisecond)
+	}
+	tt.Frame()
+	if !tt.HasText("Ping 结果") {
+		t.Fatal("ping pane missing")
+	}
+	a.traceRoute(host)
+	tt.Frame()
+	if tt.HasText("Ping 结果") {
+		t.Error("the trace left the ping pane up: two line lists share the frame")
+	}
+
+	// And the way back: a live trace, then a ping, then stop — the trace
+	// pane is gone and stays gone. The states are asserted directly: the
+	// frame-level mock orchestration costs more than it protects.
+	a.startPing(host)
+	tt.Frame()
+	if tt.HasText("Tracert 结果") {
+		t.Error("the ping left the trace pane up")
+	}
+	if !a.pingVisible(host) || a.traceVisible(host) {
+		t.Errorf("after the switch: ping=%v trace=%v", a.pingVisible(host), a.traceVisible(host))
+	}
+	a.stopPing()
+	if a.traceVisible(host) {
+		t.Error("stop left the trace visible")
+	}
+}
+
 // TestTraceRun ends by itself when the process does, its lines reaching
 // the pane; the ✕ then closes it.
 func TestTraceRun(t *testing.T) {
