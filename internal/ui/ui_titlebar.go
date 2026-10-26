@@ -1,9 +1,6 @@
 package ui
 
-import (
-	"github.com/egoist/mygo"
-	"github.com/egoist/mygo/ui"
-)
+import "github.com/egoist/mygo/ui"
 
 // The caption buttons' glyphs, drawn as strokes so no icon font is needed.
 // ui.Icon paints an SVG's shapes in the text color, whatever colors the
@@ -42,27 +39,9 @@ func (a *app) titleBar(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, "局域网 IP 扫描").FontSize(12.5).FontWeight(600).TextColor(t.Text)
 		})
 		ui.Box(c).Grow(1)
-		a.aboutButton(c, t)
 		a.themeButton(c, t)
 		a.captionButton(c, t, minimizeSVG, "最小化", t.SurfaceHover, t.Text, a.minimize)
 		a.captionButton(c, t, closeSVG, "关闭", ui.Hex("#c42b1c"), ui.Hex("#ffffff"), a.close)
-	})
-}
-
-// aboutButton opens the about popover: the version, the update check.
-func (a *app) aboutButton(c *ui.Context, t *ui.Theme) {
-	b := flatButton(c, "关于")
-	if b.Clicked() {
-		a.aboutOpen = !a.aboutOpen
-	}
-	ui.Popover(c, b, &a.aboutOpen, func() {
-		ui.Column(c).Gap(10).Padding(14).Width(280).Children(func() {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "局域网 IP 扫描").FontSize(13).FontWeight(600).Shrink(0)
-				ui.Text(c, mygo.App.Version()).FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted)
-			})
-			a.updateRow(c, t)
-		})
 	})
 }
 

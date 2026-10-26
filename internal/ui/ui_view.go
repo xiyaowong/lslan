@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"lslan/internal/model"
@@ -293,6 +294,25 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 		}
 		ui.Box(c).Grow(1)
 		ui.Checkbox(c, &a.showOffline, "显示离线地址").FontSize(12)
+		a.aboutButton(c, t)
+	})
+}
+
+// aboutButton is the status bar's quiet 关于: the version and the update
+// check in a popover above it.
+func (a *app) aboutButton(c *ui.Context, t *ui.Theme) {
+	b := flatButton(c, "关于")
+	if b.Clicked() {
+		a.aboutOpen = !a.aboutOpen
+	}
+	ui.Popover(c, b, &a.aboutOpen, func() {
+		ui.Column(c).Gap(10).Padding(14).Width(280).Children(func() {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, "局域网 IP 扫描").FontSize(13).FontWeight(600).Shrink(0)
+				ui.Text(c, mygo.App.Version()).FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted)
+			})
+			a.updateRow(c, t)
+		})
 	})
 }
 
