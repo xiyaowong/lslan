@@ -34,3 +34,6 @@
 ## 引擎与数据流
 
 - 引擎每次上报 host 都会整体覆盖 `model.Host`,它不知道端口扫描 → 端口结果单独缓存(`a.ports[ip]`),只在开始扫描时清空
+- 底部交互区(Ping/Telnet/Tracert)的降级列表各有自己的 `ui.ListState`——两个面板同帧共享一个 state 直接崩;启动任一工具时把其他工具的面板整个关掉
+- 控制台子进程(tracert 等)要 `SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}`(CREATE_NO_WINDOW),否则闪一个黑框到前台
+- 帧级 mock 编排(多 fake 会话/流配对喂样本)成本很快超过保护价值 → 状态断言能过的就别全帧断言
