@@ -16,10 +16,11 @@ var iconPNG []byte
 // Window geometry: a scanner's window, not a workspace's. 900 is the host
 // card and the detail sidebar side by side with a little room to spare,
 // 620 shows a dozen hosts above the status bar; the screen it opens on
-// bounds both, for a small laptop.
+// bounds both, for a small laptop. The size is fixed: no resizing, no
+// maximize (#47), so the layout never has to reflow.
 const (
 	prefWidth, prefHeight   = 900, 620
-	minWidth, minHeight     = 860, 520
+	leastWidth, leastHeight = 860, 520
 	widthShare, heightShare = 0.82, 0.86
 )
 
@@ -32,16 +33,19 @@ func main() {
 	mygo.App.WhenReady(func() {
 		w, h := windowSize(mygo.Screen.PrimaryDisplay().WorkArea.Width, mygo.Screen.PrimaryDisplay().WorkArea.Height)
 		a.AttachWindow(mygo.WindowOptions{
-			Title:     "局域网 IP 扫描",
-			Width:     w,
-			Height:    h,
-			MinWidth:  minWidth,
-			MinHeight: minHeight,
-			// Native window buttons stay; the view draws logo and name
-			// into the title bar strip (extended title bar).
-			TitleBarStyle:   mygo.TitleBarHidden,
-			TitleBarHeight:  44,
-			BackgroundColor: "#f2f4f7",
+			Title: "局域网 IP 扫描",
+			Width: w,
+			Height: h,
+			// The size is fixed: no maximize button and no resizing (#47).
+			// The system caption is hidden because it would show a disabled
+			// maximize button rather than none; the view draws its own
+			// minimize and close (ui_titlebar.go).
+			TitleBarStyle:    mygo.TitleBarHidden,
+			TitleBarHeight:   44,
+			DisableResize:    true,
+			DisableMaximize:  true,
+			HideWindowButtons: true,
+			BackgroundColor:  "#f2f4f7",
 		})
 	})
 	if err := mygo.App.Run(); err != nil {
@@ -49,12 +53,12 @@ func main() {
 	}
 }
 
-// windowSize picks the window's content size from the room the screen has,
+// windowSize picks the window's fixed size from the room the screen has,
 // workArea in DIPs: the preferred size where it fits, else most of the
 // screen, never below the least the layout needs unless the screen itself
 // is smaller.
 func windowSize(availW, availH int) (int, int) {
-	return fit(prefWidth, availW, widthShare, minWidth), fit(prefHeight, availH, heightShare, minHeight)
+	return fit(prefWidth, availW, widthShare, leastWidth), fit(prefHeight, availH, heightShare, leastHeight)
 }
 
 func fit(pref, avail int, share float64, least int) int {
