@@ -83,24 +83,18 @@ func (a *app) detailHeader(c *ui.Context, t *ui.Theme, h model.Host) {
 }
 
 // detailInfo is the facts, a caption and its value a row, each with a
-// button copying the value for pasting elsewhere.
+// button copying the value for pasting elsewhere. The ports live in the
+// port section below, which says how many are open — no separate row.
 func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
-	scanned := a.ports[h.IP]
-	open := len(openPorts(scanned))
-	ports := ""
-	if len(scanned) > 0 {
-		ports = fmt.Sprintf("%d 个开放 · 共 %d 个", open, len(scanned))
-	}
 	seen := ""
 	if !h.LastSeen.IsZero() {
 		seen = h.LastSeen.Format("01-02 15:04")
 	}
 	type fact struct{ label, value string }
-	for _, f := range [5]fact{
+	for _, f := range [4]fact{
 		{"主机名", h.Hostname},
 		{"厂商", h.Vendor},
 		{"MAC 地址", h.MAC},
-		{"开放端口", ports},
 		{"上次在线", seen},
 	} {
 		value := f.value

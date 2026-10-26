@@ -235,7 +235,7 @@ func TestDetailLayout(t *testing.T) {
 	if head.X <= row.X+row.W {
 		t.Errorf("detail panel at x=%v sits beside the row ending at %v, want it at the right", head.X, row.X+row.W)
 	}
-	for _, s := range []string{"MAC 地址", "厂商", "主机名", "上次在线", "开放端口", "还没扫描过"} {
+	for _, s := range []string{"MAC 地址", "厂商", "主机名", "上次在线", "还没扫描过"} {
 		if !tt.HasText(s) {
 			t.Errorf("%q missing from the detail panel, texts %q", s, tt.Texts())
 		}
