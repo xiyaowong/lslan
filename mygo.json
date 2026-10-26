@@ -1,7 +1,7 @@
 {
   "name": "lslan",
   "identifier": "com.example.lslan",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "out": "build",
   "updates": {
     "publicKey": "jbumiMxQHCyvJUx/kv1PEa0yS1v8Xn0v0pvm/nAwX7Q=",
