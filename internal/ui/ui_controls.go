@@ -22,11 +22,11 @@ func flatButton(c *ui.Context, label string) ui.Element {
 	return flatFace(c, b)
 }
 
-// iconButton is a small square button showing only an icon, named for
-// assistive technology and its tooltip. draw gets the ink of the current
-// theme, so its glyph follows the appearance.
-func iconButton(c *ui.Context, name string, size float32, draw func(p *ui.Painter, r ui.Rect, ink ui.Color)) ui.Element {
-	b := ui.ButtonBase(c).Size(size, size).Radius(4).Shrink(0).Label(name).Tooltip(name)
+// iconButton is a small square button showing only an icon. label names
+// it for assistive technology and tests (unique in the window), tooltip
+// is the hover word — a bare verb, the position saying the rest.
+func iconButton(c *ui.Context, label, tooltip string, size float32, draw func(p *ui.Painter, r ui.Rect, ink ui.Color)) ui.Element {
+	b := ui.ButtonBase(c).Size(size, size).Radius(4).Shrink(0).Label(label).Tooltip(tooltip)
 	ink := iconInk(c.Theme())
 	b.Draw(func(p *ui.Painter, r ui.Rect) { draw(p, r, ink) })
 	return flatFace(c, b)
@@ -53,15 +53,6 @@ func drawClose(p *ui.Painter, r ui.Rect, ink ui.Color) {
 	cx, cy := r.X+r.W/2, r.Y+r.H/2
 	var path ui.Path
 	path.MoveTo(cx-d, cy-d).LineTo(cx+d, cy+d).MoveTo(cx+d, cy-d).LineTo(cx-d, cy+d)
-	p.StrokePath(&path, 1.3, ink)
-}
-
-// drawMinus draws a — of an icon button.
-func drawMinus(p *ui.Painter, r ui.Rect, ink ui.Color) {
-	d := min(r.W, r.H) * 0.28
-	cy := r.Y + r.H/2
-	var path ui.Path
-	path.MoveTo(r.X+r.W/2-d, cy).LineTo(r.X+r.W/2+d, cy)
 	p.StrokePath(&path, 1.3, ink)
 }
 
