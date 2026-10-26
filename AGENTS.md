@@ -10,13 +10,14 @@ lslan — 家庭局域网 IP 扫描工具(Windows)。
 - 运行时零污染:不写注册表/磁盘,数据内嵌。引入写入即违约
 - 契约:`internal/model`、`internal/scan` 公开签名冻结,改动须同步 `main.go`
 - 备注功能不做
+- 终端插件靠 ghostty-vt.dll(Ghostty 的终端仿真,运行时从缓存加载):`go build` 出的裸 exe 找不到它会自己下载,`just run`/`just build` 都会摆好;只看源码可不管它
 - 界面:Fluent 2 质感,深浅主题切换(默认跟随系统),组件大气不拥挤(斟酌 gap/padding/margin),自定义标题栏;用词避免术语化,基础水平用户可循操作;窗口固定尺寸下所有文字完整可见
 
 ## 命令
 
-用 justfile:`just dev` / `just check`(fmt+vet+test)/ `just build` / `just run` / `just clean`
+用 justfile:`just dev` / `just check`(fmt+vet+test)/ `just build` / `just run`(可选 `mdns` 参数)/ `just clean`
 
-`just run` 构建到固定路径 `build/test/lslan-test.exe` 再启动:防火墙授权按 exe 路径记,固定路径才授权一次,无人值守也能跑
+`just run` 构建到固定路径 `build/test/lslan-test.exe` 再启动(防火墙授权按 exe 路径记,固定路径授权一次),默认关 mDNS(并发跑会抢 UDP 口),`just run mdns` 保留
 
 ## 结构
 

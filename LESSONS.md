@@ -12,7 +12,9 @@
 - Go internal 包不能在模块外编译(如 %TEMP% 副本)→ 仓库内构建
 - Go 1.27 删了 `UDPConn.JoinGroup` → 组播监听用 `net.ListenMulticastUDP`(Windows 上已自带 SO_REUSEADDR,可直接与系统 mDNS 共存 5353)
 - just 默认用 `sh`,Windows 上 `New-Item` 之类会 not found → justfile 顶部 `set windows-shell := ["pwsh", "-NoProfile", "-Command"]`
-- 防火墙/UAC 授权按 exe 路径记,`go build` 每次换临时目录就重新弹窗,无人值守点不了 → 用固定路径 `build/test/lslan-test.exe`(`just run`)
+- 防火墙/UAC 授权按 exe 路径记,`go build` 每次换临时目录就重新弹窗 → 用固定路径 `build/test/lslan-test.exe`(`just run`)
+- `Remove-Item Env:\VAR` 在变量不存在时仍报错退出 → 先 `Test-Path Env:\VAR` 再删
+- 终端插件的 ghostty-vt.dll 加载顺序:exe 旁 → 用户缓存 `<LocalAppData>/mygo/natives/`(`go test`/`go run` 会自动下载到这,`mygo build` 放进产物)→ 裸 exe 现场下载;justfile 手动构建时要自己从缓存补到 exe 旁
 
 ## Windows API
 
