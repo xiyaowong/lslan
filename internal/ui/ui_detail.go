@@ -116,61 +116,58 @@ func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
 }
 
 // detailActions are what the host offers: reach it, probe its ports, or
-// reach it in the browser — two rows, so the words stay whole at the
-// least window size; the presets beyond the common one wait behind 更多.
+// reach it in the browser, one wrapping row — a wide window keeps it on
+// one line, a narrow one wraps the tail down; the presets beyond the
+// common one wait behind 更多.
 func (a *app) detailActions(c *ui.Context, h model.Host) {
-	ui.Column(c).Gap(6).Shrink(0).Children(func() {
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			pinging := a.pingCancel != nil && a.pingIP == h.IP
-			label := "Ping"
+	ui.Row(c).Gap(6).AlignItems(ui.Center).Wrap().Shrink(0).Children(func() {
+		pinging := a.pingCancel != nil && a.pingIP == h.IP
+		label := "Ping"
+		if pinging {
+			label = "停止 Ping"
+		}
+		if smallPrimary(c, label).Clicked() {
 			if pinging {
-				label = "停止 Ping"
+				a.stopPing()
+			} else {
+				a.startPing(h.IP)
 			}
-			if smallPrimary(c, label).Clicked() {
-				if pinging {
-					a.stopPing()
-				} else {
-					a.startPing(h.IP)
-				}
-			}
-			if btn := smallButton(c, "端口扫描").Disabled(a.portScanning); !a.portScanning && btn.Clicked() {
-				a.startPortScan(h.IP)
-			}
-			tracing := a.traceCancel != nil && a.traceIP == h.IP
-			traceLabel := "Tracert"
+		}
+		if btn := smallButton(c, "端口扫描").Disabled(a.portScanning); !a.portScanning && btn.Clicked() {
+			a.startPortScan(h.IP)
+		}
+		tracing := a.traceCancel != nil && a.traceIP == h.IP
+		traceLabel := "Tracert"
+		if tracing {
+			traceLabel = "停止 Tracert"
+		}
+		if smallButton(c, traceLabel).Clicked() {
 			if tracing {
-				traceLabel = "停止 Tracert"
+				a.stopTrace()
+			} else {
+				a.traceRoute(h.IP)
 			}
-			if smallButton(c, traceLabel).Clicked() {
-				if tracing {
-					a.stopTrace()
-				} else {
-					a.traceRoute(h.IP)
+		}
+		if smallButton(c, "浏览共享").Clicked() {
+			_ = exec.Command("explorer.exe", `\\`+h.IP.String()).Start()
+		}
+		if smallButton(c, "浏览器打开").Clicked() {
+			c.OpenURL("http://" + h.IP.String())
+		}
+		more := flatButton(c, "更多")
+		if more.Clicked() {
+			a.moreOpen = !a.moreOpen
+		}
+		ui.Popover(c, more, &a.moreOpen, func() {
+			for i, p := range a.presets() {
+				if i == 0 {
+					continue
+				}
+				if flatButton(c, p.Name+"端口").Clicked() {
+					a.moreOpen = false
+					a.startPortScanPreset(h.IP, i)
 				}
 			}
-		})
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			if smallButton(c, "浏览共享").Clicked() {
-				_ = exec.Command("explorer.exe", `\\`+h.IP.String()).Start()
-			}
-			if smallButton(c, "浏览器打开").Clicked() {
-				c.OpenURL("http://" + h.IP.String())
-			}
-			more := flatButton(c, "更多")
-			if more.Clicked() {
-				a.moreOpen = !a.moreOpen
-			}
-			ui.Popover(c, more, &a.moreOpen, func() {
-				for i, p := range a.presets() {
-					if i == 0 {
-						continue
-					}
-					if flatButton(c, p.Name+"端口").Clicked() {
-						a.moreOpen = false
-						a.startPortScanPreset(h.IP, i)
-					}
-				}
-			})
 		})
 	})
 }
