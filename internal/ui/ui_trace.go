@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/netip"
 	"os/exec"
+	"syscall"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -20,8 +21,10 @@ type traceStarter func(ctx context.Context, ip netip.Addr) (stream io.ReadCloser
 // reaping the process; cancelling ctx kills it. chcp 65001 puts the child
 // on UTF-8 — tracert otherwise writes in the OEM code page (GBK on
 // Chinese Windows), which garbles its Chinese lines in the terminal.
+// CREATE_NO_WINDOW keeps the console off the screen.
 func realTrace(ctx context.Context, ip netip.Addr) (io.ReadCloser, func() error, error) {
 	cmd := exec.CommandContext(ctx, "cmd", "/c", "chcp 65001 >nul & tracert -d -w 1000 -h 15 "+ip.String())
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, nil, err
@@ -38,6 +41,7 @@ func realTrace(ctx context.Context, ip netip.Addr) (io.ReadCloser, func() error,
 func (a *app) traceRoute(ip netip.Addr) {
 	a.stopPing()
 	a.stopTelnet()
+	a.closePing() // the foot holds one output at a time
 	a.traceGen++
 	gen := a.traceGen
 	ctx, cancel := context.WithCancel(context.Background())
@@ -123,8 +127,10 @@ func (a *app) stopTrace() {
 	}
 }
 
-// closeTrace clears the finished run's pane entirely.
+// closeTrace clears the finished run's pane entirely; a run still going
+// is stopped first, so its process never outlives its pane.
 func (a *app) closeTrace() {
+	a.stopTrace()
 	a.traceIP = netip.Addr{}
 	a.traceLines = nil
 	a.traceDone = false
@@ -163,7 +169,7 @@ func (a *app) tracePane(c *ui.Context, t *ui.Theme) {
 				a.traceTerm.view(c).Height(140)
 			})
 		} else {
-			ui.List(c, &a.pingList, len(a.traceLines), func(i int) {
+			ui.List(c, &a.traceList, len(a.traceLines), func(i int) {
 				ui.Text(c, a.traceLines[i]).Font("monospace").FontSize(12)
 			}).Background(t.Background).Radius(6).Padding(10).Height(140)
 		}
