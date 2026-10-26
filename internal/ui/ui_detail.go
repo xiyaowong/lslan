@@ -138,9 +138,9 @@ func (a *app) detailActions(c *ui.Context, h model.Host) {
 			c.OpenURL("http://" + h.IP.String())
 		}
 		tracing := a.traceCancel != nil && a.traceIP == h.IP
-		traceLabel := "路由"
+		traceLabel := "Tracert"
 		if tracing {
-			traceLabel = "停止跟踪"
+			traceLabel = "停止 Tracert"
 		}
 		if smallButton(c, traceLabel).Clicked() {
 			if tracing {

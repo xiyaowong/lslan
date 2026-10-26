@@ -145,7 +145,7 @@ func (a *app) traceVisible(ip netip.Addr) bool {
 func (a *app) tracePane(c *ui.Context, t *ui.Theme) {
 	ui.Column(c).Gap(8).Padding(10, 18, 12, 18).Shrink(0).Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			sectionTitle(c, "路由跟踪")
+			sectionTitle(c, "Tracert 结果")
 			ui.Text(c, a.traceIP.String()).FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted)
 			ui.Box(c).Grow(1)
 			if a.traceCancel != nil {

@@ -80,14 +80,14 @@ func TestTracePane(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 	tt.Frame()
-	if !tt.HasText("路由跟踪") {
+	if !tt.HasText("Tracert 结果") {
 		t.Fatalf("trace pane missing, texts %q", tt.Texts())
 	}
 	// Running: the ✕ is absent (the pane is the only output); 停止 ends it.
 	if err := tt.Click("关闭路由跟踪"); err == nil {
 		t.Error("a running trace offered the close button")
 	}
-	if err := tt.Click("停止"); err != nil {
+	if err := tt.Click("停止 Tracert"); err != nil {
 		t.Fatalf("stop button missing: %v", err)
 	}
 	waitTrace(t, a, true) // the killed process reports back
@@ -97,7 +97,7 @@ func TestTracePane(t *testing.T) {
 		t.Fatalf("close button missing after stop: %v", err)
 	}
 	tt.Frame()
-	if tt.HasText("路由跟踪") {
+	if tt.HasText("Tracert 结果") {
 		t.Error("close left the trace pane up")
 	}
 }
@@ -131,7 +131,7 @@ func TestTraceRun(t *testing.T) {
 		t.Fatalf("close missing after end: %v", err)
 	}
 	tt.Frame()
-	if tt.HasText("路由跟踪") {
+	if tt.HasText("Tracert 结果") {
 		t.Error("close left the trace pane up")
 	}
 }
