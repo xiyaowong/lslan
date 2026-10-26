@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"net/netip"
+	"os/exec"
 	"slices"
 
 	"github.com/egoist/mygo/ui"
@@ -38,6 +39,10 @@ func (a *app) detail(c *ui.Context) {
 		if a.telnetVisible(h.IP) {
 			ui.Divider(c).Shrink(0)
 			a.telnetPane(c, t)
+		}
+		if a.traceVisible(h.IP) {
+			ui.Divider(c).Shrink(0)
+			a.tracePane(c, t)
 		}
 	})
 }
@@ -106,15 +111,19 @@ func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
 					c.WriteClipboard(value)
 				}
 			}
+			if f.label == "主机名" {
+				a.netbiosAsk(c, h)
+			}
 		})
 	}
 }
 
 // detailActions are what the host offers: reach it, probe its ports, or
-// reach it in the browser; the presets beyond the common one wait behind
-// 更多.
+// reach it in the browser, one wrapping row — a wide window keeps it on
+// one line, a narrow one wraps the tail down; the presets beyond the
+// common one wait behind 更多.
 func (a *app) detailActions(c *ui.Context, h model.Host) {
-	ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
+	ui.Row(c).Gap(6).AlignItems(ui.Center).Wrap().Shrink(0).Children(func() {
 		pinging := a.pingCancel != nil && a.pingIP == h.IP
 		label := "Ping"
 		if pinging {
@@ -129,6 +138,21 @@ func (a *app) detailActions(c *ui.Context, h model.Host) {
 		}
 		if btn := smallButton(c, "端口扫描").Disabled(a.portScanning); !a.portScanning && btn.Clicked() {
 			a.startPortScan(h.IP)
+		}
+		tracing := a.traceCancel != nil && a.traceIP == h.IP
+		traceLabel := "Tracert"
+		if tracing {
+			traceLabel = "停止 Tracert"
+		}
+		if smallButton(c, traceLabel).Clicked() {
+			if tracing {
+				a.stopTrace()
+			} else {
+				a.traceRoute(h.IP)
+			}
+		}
+		if smallButton(c, "浏览共享").Clicked() {
+			_ = exec.Command("explorer.exe", `\\`+h.IP.String()).Start()
 		}
 		if smallButton(c, "浏览器打开").Clicked() {
 			c.OpenURL("http://" + h.IP.String())
