@@ -72,7 +72,10 @@ func (a *app) netbiosLookup(ip netip.Addr) {
 	nb.gen++
 	gen := nb.gen
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		// nbtstat retries its queries for ~10s on a silent device; a name
+		// that answers, answers within the first exchange, so 3s cuts the
+		// dead wait without losing live names.
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		out, err := nb.starter(ctx, ip)
 		a.dispatch(func() {

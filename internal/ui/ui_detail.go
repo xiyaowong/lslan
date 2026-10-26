@@ -338,8 +338,7 @@ func (a *app) portRow(c *ui.Context, t *ui.Theme, ip netip.Addr, p model.Port) {
 			TextAlign(ui.End)
 		ui.Text(c, portLabel(p)).FontSize(13).SingleLine().TextColor(t.TextMuted)
 		ui.Box(c).Grow(1)
-		// The copy of the port itself ends every list of actions.
-		for _, act := range acts[:len(acts)-1] {
+		for _, act := range acts {
 			if flatButton(c, act.Label).Clicked() {
 				if act.Kind == portTelnet {
 					a.startTelnet(ip, p.Number) // the in-app test (#54)
@@ -347,10 +346,6 @@ func (a *app) portRow(c *ui.Context, t *ui.Theme, ip netip.Addr, p model.Port) {
 					runPortAction(c, act)
 				}
 			}
-		}
-		if iconButton(c, "复制端口", "复制", 18, drawCopy).Clicked() {
-			c.WriteClipboard(acts[len(acts)-1].Arg)
-			c.Toast("已复制：" + acts[len(acts)-1].Arg)
 		}
 	})
 }
