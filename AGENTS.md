@@ -4,13 +4,13 @@
 
 ## 项目
 
-lslan — 家庭局域网 IP 扫描工具(Windows)。需求:[需求.md](需求.md)。
+lslan — 家庭局域网 IP 扫描工具(Windows)。
 
 - 技术栈:mygo native UI。文档 https://mygo.egoist.dev/docs/ui ;API 以模块缓存源码为准 `D:\go\pkg\mod\github.com\egoist\mygo@v0.6.4\ui\`
 - 运行时零污染:不写注册表/磁盘,数据内嵌。引入写入即违约
 - 契约:`internal/model`、`internal/scan` 公开签名冻结,改动须同步 `main.go`
 - 备注功能不做
-- 界面:始终浅色主题,微信风格,组件大气不拥挤(斟酌 gap/padding/margin),自定义标题栏;用词避免术语化,基础水平用户可循操作;默认窗口尺寸下所有文字完整可见
+- 界面:Fluent 2 质感,深浅主题切换(默认跟随系统),组件大气不拥挤(斟酌 gap/padding/margin),自定义标题栏;用词避免术语化,基础水平用户可循操作;窗口固定尺寸下所有文字完整可见
 
 ## 命令
 
