@@ -26,10 +26,6 @@ const (
 
 func main() {
 	a := ui.NewApp(iconPNG)
-	// The interface is always light; the window's own caption and buttons
-	// follow it rather than a dark system, which drew them light on our
-	// light ground.
-	mygo.Theme.SetSource(mygo.ThemeLight)
 	mygo.App.WhenReady(func() {
 		w, h := windowSize(mygo.Screen.PrimaryDisplay().WorkArea.Width, mygo.Screen.PrimaryDisplay().WorkArea.Height)
 		a.AttachWindow(mygo.WindowOptions{
@@ -45,7 +41,9 @@ func main() {
 			DisableResize:    true,
 			DisableMaximize:  true,
 			HideWindowButtons: true,
-			BackgroundColor:  "#f2f4f7",
+			// Both appearances' ground, so the flash while the view loads
+			// never shows the other one's (#46).
+			BackgroundColor: "light-dark(#f2f4f7, #202020)",
 		})
 	})
 	if err := mygo.App.Run(); err != nil {

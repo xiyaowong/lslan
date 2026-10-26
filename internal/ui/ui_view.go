@@ -47,7 +47,7 @@ var (
 // View rebuilds the whole interface each frame: title bar, the content
 // card, the status bar.
 func (a *app) View(c *ui.Context) {
-	t := appTheme()
+	t := appTheme(a.dark)
 	c.SetTheme(t)
 	a.runPending()
 	a.presets()
@@ -103,8 +103,8 @@ func cardWidth(c *ui.Context, a *app) float32 {
 
 // workspaceCard holds the command bar and the host tree.
 func (a *app) workspaceCard(c *ui.Context, t *ui.Theme) ui.Element {
-	return ui.Column(c).Background(t.Surface).Border(1, cardBorder).
-		Radius(8).Shadow(0, 1, 4, 0, cardShadow).Clip().Children(func() {
+	return ui.Column(c).Background(t.Surface).Border(1, cardBorder(t)).
+		Radius(8).Shadow(0, 1, 4, 0, cardShadow(t)).Clip().Children(func() {
 		a.commandBar(c, t)
 		ui.Divider(c).Shrink(0)
 		a.tablePane(c, t)
@@ -115,8 +115,8 @@ func (a *app) workspaceCard(c *ui.Context, t *ui.Theme) ui.Element {
 // gives it more or less room by dragging the line between it and the host
 // card.
 func (a *app) detailPanel(c *ui.Context, t *ui.Theme) ui.Element {
-	return ui.Column(c).Background(t.Surface).Border(1, cardBorder).
-		Radius(8).Shadow(0, 1, 4, 0, cardShadow).Clip().Children(func() {
+	return ui.Column(c).Background(t.Surface).Border(1, cardBorder(t)).
+		Radius(8).Shadow(0, 1, 4, 0, cardShadow(t)).Clip().Children(func() {
 		a.detail(c)
 	})
 }
@@ -347,7 +347,7 @@ func (a *app) hostTree(c *ui.Context, t *ui.Theme, visible []model.Host) {
 	// Fluent selects with a tint and keeps the text as it is, so the tree is
 	// built with an accent that is that tint and text in the theme's ink.
 	tint := *t
-	tint.Accent, tint.AccentText = chosenRow, t.Text
+	tint.Accent, tint.AccentText = chosenRow(t), t.Text
 	c.SetTheme(&tint)
 	// Beside the detail panel the card keeps only what identifies a device;
 	// the rest of the columns go where they would be cut off.
@@ -436,10 +436,12 @@ func (a *app) treeCell(c *ui.Context, col string, k treeKey) {
 			ui.Box(c).Size(8, 8).Radius(4).Background(stateDot(t, h)).Shrink(0)
 			ui.Text(c, h.IP.String()).FontFeatures("tnum").TextColor(text)
 			if h.Gateway {
-				pill(c, "网关", accentBlue, ui.Hex("#ffffff"))
+				bg, fg := gatewayPill(t)
+				pill(c, "网关", bg, fg)
 			}
 			if h.ViaMDNS {
-				pill(c, "服务发现", softPillBG, softPillText)
+				bg, fg := softPill(t)
+				pill(c, "服务发现", bg, fg)
 			}
 		})
 	case "hostname":

@@ -12,6 +12,8 @@ import (
 type pingTerminalIface interface {
 	// feed shows one ping output line; !ok renders it in red.
 	feed(line string, ok bool)
+	// setDark switches the terminal's own colors to the appearance.
+	setDark(dark bool)
 	view(c *ui.Context) ui.Element
 	close()
 }
@@ -46,6 +48,14 @@ func (p *pingTerminal) feed(line string, ok bool) {
 		return
 	}
 	p.term.Feed([]byte(line + "\r\n"))
+}
+
+func (p *pingTerminal) setDark(dark bool) {
+	if dark {
+		p.term.UseTheme(terminal.DarkTheme())
+	} else {
+		p.term.UseTheme(terminal.LightTheme())
+	}
 }
 
 func (p *pingTerminal) view(c *ui.Context) ui.Element {
