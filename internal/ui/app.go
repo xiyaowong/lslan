@@ -120,9 +120,7 @@ type app struct {
 
 	// Ping state; pingGen drops samples of a stopped session. pingTerm is
 	// the terminal plugin view of the session, nil when it could not be
-	// created (the plain line list stands in). pingHidden folds the pane
-	// away while the session keeps running (#64); it clears on a new
-	// session or a stop.
+	// created (the plain line list stands in).
 	pingGen    int
 	pingCancel context.CancelFunc
 	pingIP     netip.Addr
@@ -130,7 +128,6 @@ type app struct {
 	pingStats  pingStats
 	pingList   ui.ListState
 	pingTerm   pingTerminalIface
-	pingHidden bool
 
 	// Telnet test state (#54): one interactive session at a time, shared
 	// with ping — starting either ends the other, and the pane at the
@@ -507,16 +504,28 @@ func (a *app) applyEvent(ev scan.Event) {
 }
 
 // stopPing ends the current session; its in-flight samples are dropped by
-// pingGen. Safe to call with no session running.
+// pingGen. Safe to call with no session running. The pane stays up with
+// the results until closePing clears it.
 func (a *app) stopPing() {
 	a.pingGen++
 	a.stopTelnet() // the terminal pane holds one interactive session
-	a.pingHidden = false
 	if a.pingCancel != nil {
 		cancel := a.pingCancel
 		a.pingCancel = nil
 		cancel()
 	}
+	if a.pingTerm != nil {
+		a.pingTerm.close()
+		a.pingTerm = nil
+	}
+}
+
+// closePing clears the finished session's pane entirely; the pane shows
+// the ✕ only once pingCancel is nil, so this never ends a running one.
+func (a *app) closePing() {
+	a.pingIP = netip.Addr{}
+	a.pingLines = nil
+	a.pingStats = pingStats{}
 	if a.pingTerm != nil {
 		a.pingTerm.close()
 		a.pingTerm = nil
@@ -533,7 +542,6 @@ func (a *app) startPing(ip netip.Addr) {
 	a.pingIP = ip
 	a.pingLines = nil
 	a.pingStats = pingStats{}
-	a.pingHidden = false
 	if term, err := a.newPingTerm(); err == nil {
 		a.pingTerm = term
 		term.setDark(a.dark)

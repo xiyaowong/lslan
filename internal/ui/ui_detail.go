@@ -43,9 +43,10 @@ func (a *app) detail(c *ui.Context) {
 }
 
 // pingVisible reports whether the ping pane shows for ip: the session
-// belongs to it and has anything to show.
+// belongs to it and has anything to show — a live terminal, lines of a
+// fallback list, or the tally of a session that has stopped.
 func (a *app) pingVisible(ip netip.Addr) bool {
-	return a.pingIP == ip && (a.pingTerm != nil || len(a.pingLines) > 0)
+	return a.pingIP == ip && (a.pingTerm != nil || len(a.pingLines) > 0 || a.pingStats.sent > 0)
 }
 
 // telnetVisible reports whether the telnet pane shows for ip: the test
@@ -62,7 +63,7 @@ func (a *app) detailHeader(c *ui.Context, t *ui.Theme, h model.Host) {
 			ui.Box(c).Size(10, 10).Radius(5).Background(stateDot(t, h)).Shrink(0)
 			ui.Text(c, h.IP.String()).FontSize(20).FontWeight(600).FontFeatures("tnum")
 			ui.Box(c).Grow(1)
-			if iconButton(c, "关闭详情", 18, drawClose).Clicked() {
+			if iconButton(c, "关闭详情", "关闭", 18, drawClose).Clicked() {
 				a.selRow, a.selIP = -1, netip.Addr{}
 			}
 		})
@@ -107,7 +108,7 @@ func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
 			ui.Text(c, f.label).FontSize(12).Width(64).TextColor(t.TextMuted).Shrink(0)
 			ui.Text(c, orDash(value)).FontSize(13).SingleLine().Tooltip(value)
 			if value != "" {
-				if iconButton(c, "复制"+f.label, 18, drawCopy).Clicked() {
+				if iconButton(c, "复制"+f.label, "复制", 18, drawCopy).Clicked() {
 					c.WriteClipboard(value)
 				}
 			}
@@ -158,20 +159,20 @@ func (a *app) detailActions(c *ui.Context, h model.Host) {
 
 // pingPane is the ping output of the selected host docked to the panel's
 // foot — the terminal plugin view when one was created, else a plain
-// line list. The caller checks there is anything to show; the dash at
-// the title's right folds it away while the session runs on (#64).
+// line list. The caller checks there is anything to show. While the
+// session runs the pane is the only output there is, so the ✕ that
+// clears it appears once the session has stopped (#64).
 func (a *app) pingPane(c *ui.Context, t *ui.Theme) {
 	ui.Column(c).Gap(8).Padding(10, 18, 12, 18).Shrink(0).Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			sectionTitle(c, "Ping 结果")
 			ui.Box(c).Grow(1)
-			if iconButton(c, "隐藏 Ping 输出", 16, drawMinus).Clicked() {
-				a.pingHidden = true
+			if a.pingCancel == nil {
+				if iconButton(c, "关闭 Ping 结果", "关闭", 16, drawClose).Clicked() {
+					a.closePing()
+				}
 			}
 		})
-		if a.pingHidden {
-			return
-		}
 		if a.pingTerm != nil {
 			// The terminal view paints itself and has no height of its own:
 			// without an explicit height it collapses to nothing.
@@ -326,7 +327,7 @@ func (a *app) portRow(c *ui.Context, t *ui.Theme, ip netip.Addr, p model.Port) {
 				}
 			}
 		}
-		if iconButton(c, "复制端口", 18, drawCopy).Clicked() {
+		if iconButton(c, "复制端口", "复制", 18, drawCopy).Clicked() {
 			c.WriteClipboard(acts[len(acts)-1].Arg)
 		}
 	})
