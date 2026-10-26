@@ -17,9 +17,11 @@ import (
 type traceStarter func(ctx context.Context, ip netip.Addr) (stream io.ReadCloser, wait func() error, err error)
 
 // realTrace starts the system tracert: one hop line at a time, the wait
-// reaping the process; cancelling ctx kills it.
+// reaping the process; cancelling ctx kills it. chcp 65001 puts the child
+// on UTF-8 — tracert otherwise writes in the OEM code page (GBK on
+// Chinese Windows), which garbles its Chinese lines in the terminal.
 func realTrace(ctx context.Context, ip netip.Addr) (io.ReadCloser, func() error, error) {
-	cmd := exec.CommandContext(ctx, "cmd", "/c", "tracert", "-d", "-w", "1000", "-h", "15", ip.String())
+	cmd := exec.CommandContext(ctx, "cmd", "/c", "chcp 65001 >nul & tracert -d -w 1000 -h 15 "+ip.String())
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, nil, err
