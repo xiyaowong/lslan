@@ -13,13 +13,14 @@ import (
 //go:embed resources/icon.png
 var iconPNG []byte
 
-// Window geometry: a scanner's window, not a workspace's. 900 is the host
-// card and the detail sidebar side by side with a little room to spare,
-// 620 shows a dozen hosts above the status bar; the screen it opens on
-// bounds both, for a small laptop. The size is fixed: no resizing, no
-// maximize (#47), so the layout never has to reflow.
+// Window geometry: a scanner's window, not a workspace's. 1040 keeps the
+// host card at its own width and gives the details room enough for a
+// port row and its actions; 720 leaves the panel's foot for the ping
+// pane, which stays visible however long the facts above it run. The
+// screen it opens on bounds both, for a small laptop. The size is fixed:
+// no resizing, no maximize (#47), so the layout never has to reflow.
 const (
-	prefWidth, prefHeight   = 900, 620
+	prefWidth, prefHeight   = 1040, 720
 	leastWidth, leastHeight = 860, 520
 	widthShare, heightShare = 0.82, 0.86
 )

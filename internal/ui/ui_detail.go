@@ -11,24 +11,30 @@ import (
 )
 
 // detail fills the sidebar for the selected host: a header with the
-// device and a way to close it, the actions, the facts, then the ports,
-// the services it advertises and the ping output. It scrolls when the
-// content needs more room than the sidebar has.
+// device and a way to close it, the actions, the facts, then the ports
+// and the services it advertises — all scrolling when they need more
+// room — and the ping output pinned to the panel's foot, so it stays in
+// sight however long the scrolling part runs (#51).
 func (a *app) detail(c *ui.Context) {
 	h, ok := a.hosts[a.selIP]
 	if !ok {
 		return
 	}
 	t := c.Theme()
-	ui.Scroll(c).Fill().Children(func() {
-		ui.Column(c).Padding(16, 18, 20, 18).Gap(18).Children(func() {
-			a.detailHeader(c, t, h)
-			a.detailActions(c, h)
-			a.detailInfo(c, t, h)
-			a.portSection(c, t, h)
-			a.serviceSection(c, t, h)
-			a.pingTerminal(c, t, h)
+	ui.Column(c).Fill().Children(func() {
+		ui.Scroll(c).Grow(1).Shrink(1).Children(func() {
+			ui.Column(c).Padding(16, 18, 16, 18).Gap(18).Children(func() {
+				a.detailHeader(c, t, h)
+				a.detailActions(c, h)
+				a.detailInfo(c, t, h)
+				a.portSection(c, t, h)
+				a.serviceSection(c, t, h)
+			})
 		})
+		if a.pingIP == h.IP && (a.pingTerm != nil || len(a.pingLines) > 0) {
+			ui.Divider(c).Shrink(0)
+			a.pingPane(c, t)
+		}
 	})
 }
 
@@ -134,14 +140,11 @@ func (a *app) detailActions(c *ui.Context, h model.Host) {
 	})
 }
 
-// pingTerminal streams the ping output of the selected host — the
-// terminal plugin view when one was created, else a plain line list —
-// and only while pinging or with lines to show.
-func (a *app) pingTerminal(c *ui.Context, t *ui.Theme, h model.Host) {
-	if a.pingIP != h.IP || (a.pingTerm == nil && len(a.pingLines) == 0) {
-		return
-	}
-	ui.Column(c).Gap(8).Shrink(0).Children(func() {
+// pingPane is the ping output of the selected host docked to the panel's
+// foot — the terminal plugin view when one was created, else a plain
+// line list. The caller checks there is anything to show.
+func (a *app) pingPane(c *ui.Context, t *ui.Theme) {
+	ui.Column(c).Gap(8).Padding(10, 18, 12, 18).Shrink(0).Children(func() {
 		sectionTitle(c, "Ping 结果")
 		if a.pingTerm != nil {
 			// The terminal view paints itself and has no height of its own:
