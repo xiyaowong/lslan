@@ -104,13 +104,20 @@ func (a *app) installUpdate() {
 			u.found = nil
 			u.note, u.failed = "已更新到 "+upd.version()+"，重启后生效", false
 			if a.win != nil {
-				go mygo.Dialog.Message(mygo.MessageOptions{
-					Parent:  a.win,
-					Type:    mygo.MessageInfo,
-					Title:   "更新完成",
-					Message: "新版本已就绪，现在重启吗？",
-					Buttons: []string{"现在重启", "下次启动生效"},
-				})
+				go func() {
+					res, err := mygo.Dialog.Message(mygo.MessageOptions{
+						Parent:  a.win,
+						Type:    mygo.MessageInfo,
+						Title:   "更新完成",
+						Message: "新版本已就绪，现在重启吗？",
+						Buttons: []string{"现在重启", "下次启动生效"},
+					})
+					// Only a click on 现在重启 starts it; an error or a
+					// dismissal leaves the new version to the next launch.
+					if err == nil && res.Button == 0 {
+						mygo.App.Relaunch()
+					}
+				}()
 			}
 		})
 	}()
