@@ -35,6 +35,7 @@
 
 - 引擎每次上报 host 都会整体覆盖 `model.Host`,它不知道端口扫描 → 端口结果单独缓存(`a.ports[ip]`),只在开始扫描时清空
 - 离线回填把扫描范围里每个没应答的地址都填成 `StateOffline`,所以"离线"不等于"这台有设备"(一个 C 段能有 240 多个空地址)→ 要挑真实设备时以有 MAC 为准,别拿离线当条件
+- 装了代理/ VPN 的 TUN 网卡时,不绑定源地址的 TCP 连接会被 TUN 接走并"秒成功"(源地址是 198.18.x.x),于是任何地址的任何端口都显示开放 → 探测局域网要 `LocalAddr` 绑到所选网卡自己的地址(`scan.dialFrom`);ICMP 走 IP 层不受影响
 - 底部交互区(Ping/Telnet/Tracert)的降级列表各有自己的 `ui.ListState`——两个面板同帧共享一个 state 直接崩;启动任一工具时把其他工具的面板整个关掉
 - 控制台子进程(tracert 等)要 `SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}`(CREATE_NO_WINDOW),否则闪一个黑框到前台
 - 帧级 mock 编排(多 fake 会话/流配对喂样本)成本很快超过保护价值 → 状态断言能过的就别全帧断言

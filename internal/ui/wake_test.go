@@ -28,7 +28,7 @@ func newWakeApp() *wakeApp {
 		return nil
 	}
 	a.wakeMac = func(ip netip.Addr) string { return wa.arp[ip.String()] }
-	a.wakeProbe = func(ip netip.Addr) bool {
+	a.wakeProbe = func(src, ip netip.Addr) bool {
 		wa.probes = append(wa.probes, ip)
 		if wa.answer != nil {
 			return wa.answer(ip)

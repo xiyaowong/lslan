@@ -129,6 +129,7 @@ func subnetBroadcast(ip netip.Addr, plen int) (netip.Addr, bool) {
 // "" when it has none — the last word on a device that is off now.
 func MACFor(ip netip.Addr) string { return readARPTable()[ip] }
 
-// Probe reports whether ip answers now, by the sweep's own liveness
-// check: an ICMP echo where available, else a TCP connect.
-func Probe(ip netip.Addr) bool { return probeHost(ip) }
+// Probe reports whether ip answers now, from the adapter src: the
+// sweep's own liveness check, an ICMP echo where available, else a TCP
+// connect.
+func Probe(src, ip netip.Addr) bool { return probeHost(src, ip) }

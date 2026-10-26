@@ -112,6 +112,16 @@ const (
 // results sorted by port number (open first is NOT applied here).
 // It blocks; ctx cancellation stops it.
 func ScanPorts(ctx context.Context, ip netip.Addr, ports []int) ([]model.Port, error) {
+	return ScanPortsFrom(ctx, netip.Addr{}, ip, ports)
+}
+
+// ScanPortsFrom is ScanPorts with the connections made from src, the
+// adapter's own address. Binding the source matters wherever a VPN's TUN
+// adapter routes the LAN too: an unbound dial is then taken by the tunnel,
+// which accepts every connection at once, and every port of every address
+// reads as open. LAN traffic bound to the adapter's address goes out of
+// it, so the answer is the device's.
+func ScanPortsFrom(ctx context.Context, src, ip netip.Addr, ports []int) ([]model.Port, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -131,8 +141,7 @@ func ScanPorts(ctx context.Context, ip netip.Addr, ports []int) ([]model.Port, e
 				return
 			}
 			defer func() { <-sem }()
-			d := net.Dialer{Timeout: portTimeout}
-			c, err := d.DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), strconv.Itoa(p)))
+			c, err := dialFrom(ctx, src, ip, p, portTimeout)
 			if err == nil {
 				c.Close()
 			}
@@ -145,4 +154,14 @@ func ScanPorts(ctx context.Context, ip netip.Addr, ports []int) ([]model.Port, e
 	}
 	slices.SortFunc(results, func(a, b model.Port) int { return a.Number - b.Number })
 	return results, nil
+}
+
+// dialFrom opens one TCP connection to ip:port, from src when it is a
+// usable local address: a tunnel adapter would otherwise take the dial.
+func dialFrom(ctx context.Context, src, ip netip.Addr, port int, timeout time.Duration) (net.Conn, error) {
+	d := net.Dialer{Timeout: timeout}
+	if src.IsValid() && src.Is4() && !src.IsUnspecified() && !src.IsLoopback() {
+		d.LocalAddr = &net.TCPAddr{IP: src.AsSlice()}
+	}
+	return d.DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), strconv.Itoa(port)))
 }

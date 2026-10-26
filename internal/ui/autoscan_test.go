@@ -22,7 +22,7 @@ func TestAutoPortScan(t *testing.T) {
 	}
 	a.newScanner = func() scannerIface { return &fakeScanner{} }
 	calls := 0
-	a.scanPorts = func(ctx context.Context, ip netip.Addr, ports []int) ([]model.Port, error) {
+	a.scanPorts = func(ctx context.Context, src, ip netip.Addr, ports []int) ([]model.Port, error) {
 		calls++
 		return nil, nil
 	}
