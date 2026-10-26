@@ -111,6 +111,9 @@ func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
 					c.WriteClipboard(value)
 				}
 			}
+			if f.label == "主机名" {
+				a.netbiosAsk(c, h)
+			}
 		})
 	}
 }

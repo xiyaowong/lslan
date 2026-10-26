@@ -151,6 +151,10 @@ type app struct {
 	traceTerm    pingTerminalIface
 	traceStarter traceStarter
 
+	// netbios is the one-at-a-time name query for a device whose
+	// hostname is missing; the answer fills the facts, never overwrites.
+	netbios netbiosState
+
 	// Port scan state.
 	presetNames  []string
 	presetCache  []scan.Preset
