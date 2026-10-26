@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -39,6 +40,10 @@ func (realUpdater) check(ctx context.Context) (updateIface, error) {
 // waiting for the user's click, the install carrying its progress. The
 // feed is asked off the interface thread, like the dial of the telnet
 // test; states change only through dispatch.
+//
+// The states are exclusive: busy (a check in flight), installing, found
+// (a newer version waiting for its install), else the resting note. When
+// found is set the note is empty; note holds the resting outcome.
 type updateState struct {
 	checkFn    updaterIface
 	busy       bool // a check is in flight
@@ -48,6 +53,10 @@ type updateState struct {
 	note       string  // the outcome of the last check or install
 	failed     bool    // note is a failure
 }
+
+// updateCheckTimeout bounds one feed check: without it a hanging request
+// would leave the check spinning forever.
+const updateCheckTimeout = 15 * time.Second
 
 // checkForUpdate asks the update feed; "已是最新版本" lands in note, a
 // newer version waits in found for its install row.
@@ -61,7 +70,9 @@ func (a *app) checkForUpdate() {
 	}
 	u.busy, u.note, u.failed = true, "", false
 	go func() {
-		upd, err := u.checkFn.check(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), updateCheckTimeout)
+		defer cancel()
+		upd, err := u.checkFn.check(ctx)
 		a.dispatch(func() {
 			u.busy = false
 			switch {

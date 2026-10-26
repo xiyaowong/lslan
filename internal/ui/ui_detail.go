@@ -31,15 +31,27 @@ func (a *app) detail(c *ui.Context) {
 				a.serviceSection(c, t, h)
 			})
 		})
-		if a.pingIP == h.IP && (a.pingTerm != nil || len(a.pingLines) > 0) {
+		if a.pingVisible(h.IP) {
 			ui.Divider(c).Shrink(0)
 			a.pingPane(c, t)
 		}
-		if a.telnetIP == h.IP && (a.telnetPending || a.telnetTerm != nil || a.telnetErr != "") {
+		if a.telnetVisible(h.IP) {
 			ui.Divider(c).Shrink(0)
 			a.telnetPane(c, t)
 		}
 	})
+}
+
+// pingVisible reports whether the ping pane shows for ip: the session
+// belongs to it and has anything to show.
+func (a *app) pingVisible(ip netip.Addr) bool {
+	return a.pingIP == ip && (a.pingTerm != nil || len(a.pingLines) > 0)
+}
+
+// telnetVisible reports whether the telnet pane shows for ip: the test
+// belongs to it and is dialing, live, or saying why it failed.
+func (a *app) telnetVisible(ip netip.Addr) bool {
+	return a.telnetIP == ip && (a.telnetPending || a.telnetTerm != nil || a.telnetErr != "")
 }
 
 // detailHeader names the device: its state, address, a button copying

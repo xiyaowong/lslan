@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"syscall"
 	"testing"
 	"time"
 
@@ -79,6 +80,14 @@ func TestTelnetFilter(t *testing.T) {
 	// A subnegotiation is skipped whole; CR NUL becomes CR.
 	if got := filterRound(t, l, "x\xff\xfa\x18\x01\xff\xf0y\r\x00z"); got != "xy\rz" {
 		t.Errorf("subnegotiation = %q", got)
+	}
+	// The CR flag holds through a negotiation: CR, then IAC, then output
+	// keeps CR only when a NUL follows it, not before other bytes.
+	if got := filterRound(t, l, "a\r\xff\xfb\x01b"); got != "a\rb" {
+		t.Errorf("CR before IAC = %q", got)
+	}
+	if got := filterRound(t, l, "c\r\xff\xfb\x01\x00d"); got != "c\rd" {
+		t.Errorf("CR NUL across IAC = %q", got)
 	}
 	// A sequence split across reads still parses.
 	l2, _ := newTestLink()
@@ -163,7 +172,30 @@ func TestTelnetSession(t *testing.T) {
 	a.startTelnet(host, 23)
 	drain(t, a)
 	tt.Frame()
-	if !tt.HasText("连接失败") {
+	if !tt.HasText("连接 192.168.1.9:23 失败") {
 		t.Errorf("failure missing, texts %q", tt.Texts())
 	}
 }
+
+// TestTelnetDialError checks the dial failure words: a timeout reads as
+// no answer, a refusal as the port being closed.
+func TestTelnetDialError(t *testing.T) {
+	host := ip("192.168.1.9")
+	timeout := &fakeNetError{timeout: true}
+	if got := telnetDialError(timeout, host, 23); got != "192.168.1.9:23 没有响应，设备可能已关机" {
+		t.Errorf("timeout = %q", got)
+	}
+	if got := telnetDialError(syscall.ECONNREFUSED, host, 23); got != "192.168.1.9:23 拒绝了连接，远程登录可能没有开启" {
+		t.Errorf("refused = %q", got)
+	}
+	if got := telnetDialError(net.ErrClosed, host, 23); got != "连接 192.168.1.9:23 失败，设备可能没开远程登录" {
+		t.Errorf("other = %q", got)
+	}
+}
+
+// fakeNetError is a net.Error with a set timeout flag.
+type fakeNetError struct{ timeout bool }
+
+func (e *fakeNetError) Error() string   { return "fake" }
+func (e *fakeNetError) Timeout() bool   { return e.timeout }
+func (e *fakeNetError) Temporary() bool { return false }

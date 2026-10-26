@@ -4,6 +4,7 @@ package ui
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -11,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -609,7 +611,7 @@ func (a *app) startTelnet(ip netip.Addr, port int) {
 			}
 			a.telnetPending = false
 			if err != nil {
-				a.telnetErr = "连接失败，设备可能没开远程登录或拒绝了连接"
+				a.telnetErr = telnetDialError(err, ip, port)
 				return
 			}
 			term, err := a.newTelnet(conn)
@@ -622,6 +624,22 @@ func (a *app) startTelnet(ip netip.Addr, port int) {
 			term.setDark(a.dark)
 		})
 	}()
+}
+
+// telnetDialError turns a failed dial into words a home user can act on:
+// a timeout means nothing answered, a refusal means the port is closed,
+// and anything else is a guess.
+func telnetDialError(err error, ip netip.Addr, port int) string {
+	where := fmt.Sprintf("%s:%d", ip, port)
+	var ne net.Error
+	switch {
+	case errors.As(err, &ne) && ne.Timeout():
+		return where + " 没有响应，设备可能已关机"
+	case errors.Is(err, syscall.ECONNREFUSED):
+		return where + " 拒绝了连接，远程登录可能没有开启"
+	default:
+		return "连接 " + where + " 失败，设备可能没开远程登录"
+	}
 }
 
 // stopTelnet ends the test and clears its pane; safe with none running.
