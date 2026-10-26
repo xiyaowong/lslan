@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"net/netip"
 	"testing"
 
@@ -57,22 +56,14 @@ func TestPortActions(t *testing.T) {
 	addr := ip("192.168.1.5")
 	for _, c := range cases {
 		got := portActions(addr, c.port)
-		last := len(got) - 1
-		if got[last].Label != "复制" || got[last].Kind != portCopy {
-			t.Errorf("port %d: last action = %+v, want the generic 复制", c.port.Number, got[last])
-			continue
-		}
-		if len(got)-1 != len(c.want) {
-			t.Errorf("port %d: %d specific actions, want %d (%+v)", c.port.Number, len(got)-1, len(c.want), got)
+		if len(got) != len(c.want) {
+			t.Errorf("port %d: %d actions, want %d (%+v)", c.port.Number, len(got), len(c.want), got)
 			continue
 		}
 		for i, w := range c.want {
 			if !sameAction(got[i], w) {
 				t.Errorf("port %d action %d = %+v, want %+v", c.port.Number, i, got[i], w)
 			}
-		}
-		if w := fmt.Sprintf("端口 %d（%s）", c.port.Number, portLabel(c.port)); got[last].Arg != w {
-			t.Errorf("port %d copy arg = %q, want %q", c.port.Number, got[last].Arg, w)
 		}
 	}
 }

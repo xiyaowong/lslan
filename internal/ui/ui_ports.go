@@ -55,8 +55,6 @@ func portActions(ip netip.Addr, p model.Port) []portAction {
 	case p.Number == 3389:
 		acts = append(acts, portAction{portLaunch, "远程桌面", "mstsc.exe", []string{"/v:" + ip.String()}})
 	}
-	acts = append(acts, portAction{portCopy, "复制",
-		fmt.Sprintf("端口 %d（%s）", p.Number, portLabel(p)), nil})
 	return acts
 }
 
