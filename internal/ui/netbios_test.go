@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"encoding/binary"
 	"net/netip"
 	"strings"
 	"testing"
@@ -12,103 +13,155 @@ import (
 	"lslan/internal/model"
 )
 
-const netbiosTable = `本地连接:
-Node IpAddress: [192.168.1.9] Scope Id: []
-
-           NetBIOS Name Table
-       Name               Type         Status
-    --------------------------------------------
-    MYPRINTER      <00>  UNIQUE      Registered
-    WORKGROUP      <00>  GROUP       Registered
-    MYPRINTER      <20>  UNIQUE      Registered
-
-    MAC Address = 00-11-22-33-44-55
-`
-
-// TestNetBIOSName picks the machine's own <00> UNIQUE record, not the
-// group's or another type's.
-func TestNetBIOSName(t *testing.T) {
-	if got := netbiosName(netbiosTable); got != "MYPRINTER" {
-		t.Errorf("netbiosName = %q, want MYPRINTER", got)
+// nbnsReply builds a Node Status Response holding the named entries:
+// 15 name bytes, two type/flag bytes each.
+func nbnsReply(names ...struct {
+	name  string
+	flags uint16
+}) []byte {
+	var p []byte
+	p = binary.BigEndian.AppendUint16(p, 0x1337) // tid
+	p = binary.BigEndian.AppendUint16(p, 0x8400) // response, authoritative
+	p = binary.BigEndian.AppendUint16(p, 0)      // qdcount
+	p = binary.BigEndian.AppendUint16(p, uint16(len(names)))
+	p = binary.BigEndian.AppendUint16(p, 0) // nscount
+	p = binary.BigEndian.AppendUint16(p, 0) // arcount
+	// The question echo: 32 encoded name bytes, then null, type, class.
+	p = append(p, make([]byte, 32+4)...)
+	// The RR: a name pointer, type NBSTAT, class IN, ttl, rdlength.
+	p = binary.BigEndian.AppendUint16(p, 0xC00C)
+	p = binary.BigEndian.AppendUint16(p, 0x0021)
+	p = binary.BigEndian.AppendUint16(p, 0x0001)
+	p = binary.BigEndian.AppendUint32(p, 0) // ttl
+	rdAt := len(p)
+	p = binary.BigEndian.AppendUint16(p, 0)
+	rd := 1 + 18*len(names)
+	p = append(p, byte(len(names))) // the count opens the table
+	for _, n := range names {
+		var raw [15]byte
+		copy(raw[:], n.name)
+		p = append(p, raw[:]...)
+		p = append(p, 0x00) // type <00>
+		p = binary.BigEndian.AppendUint16(p, n.flags)
 	}
-	if got := netbiosName("    Host not found.\n"); got != "" {
-		t.Errorf("netbiosName of a miss = %q, want empty", got)
+	p[rdAt], p[rdAt+1] = byte(rd>>8), byte(rd)
+	return p
+}
+
+// TestNBNSReplyName picks the machine's <00> UNIQUE entry, skipping
+// group names and the browse master.
+func TestNBNSReplyName(t *testing.T) {
+	unique := nbnsReply(
+		struct {
+			name  string
+			flags uint16
+		}{"MYPRINTER", 0x0400}, // a registered unique name
+		struct {
+			name  string
+			flags uint16
+		}{"WORKGROUP", 0x8400}, // a group name
+	)
+	if got, ok := nbnsReplyName(unique); !ok || got != "MYPRINTER" {
+		t.Errorf("nbnsReplyName = %q,%v, want MYPRINTER", got, ok)
 	}
-	// A padded name keeps its inner spacing but loses the edges.
-	if got := netbiosName("    HP  LASER  <00>  UNIQUE      Registered\n"); got != "HP  LASER" {
-		t.Errorf("padded name = %q", got)
+	// Only a group: no name to pick.
+	group := nbnsReply(struct {
+		name  string
+		flags uint16
+	}{"WORKGROUP", 0x8400})
+	if _, ok := nbnsReplyName(group); ok {
+		t.Error("a group-only table gave a name")
+	}
+	// A short or negative packet parses to nothing.
+	if _, ok := nbnsReplyName([]byte{0x13, 0x37}); ok {
+		t.Error("a stub packet gave a name")
 	}
 }
 
-// TestNetBIOSLookup: the answer fills a missing hostname, never an
-// existing one; a miss leaves the facts alone.
-func TestNetBIOSLookup(t *testing.T) {
+// TestNBNSQueryShape checks the wire format of the question: the
+// wildcard name encoded, the NBSTAT type, one question.
+func TestNBNSQueryShape(t *testing.T) {
+	q := nbnsQuery()
+	if len(q) != 50 {
+		t.Fatalf("query is %d bytes, want 50", len(q))
+	}
+	if qd := binary.BigEndian.Uint16(q[4:6]); qd != 1 {
+		t.Errorf("qdcount = %d, want 1", qd)
+	}
+	if typ := binary.BigEndian.Uint16(q[46:48]); typ != 0x21 {
+		t.Errorf("qtype = %#x, want NBSTAT 0x21", typ)
+	}
+	// The encoded name starts with the two letters of '*'.
+	if q[13] != 'A' || q[14] != 'K' { // 0x2A = 'A'<<4 | 'A' -> "AK"
+		t.Errorf("name encoding starts %q, want AK", q[13:15])
+	}
+}
+
+// TestNetBIOSAutoAsk: opening a device's details asks by itself, the
+// name landing in its own fact row; returning does not ask again.
+func TestNetBIOSAutoAsk(t *testing.T) {
 	host := ip("192.168.1.9")
 	a := newApp()
 	a.hosts[host] = model.Host{IP: host, State: model.StateOnline}
+	calls := 0
 	a.netbios.starter = func(context.Context, netip.Addr) (string, error) {
-		return netbiosTable, nil
+		calls++
+		return "MYPRINTER", nil
 	}
 	tt := ui.NewTester(a.View, 1040, 720)
 	a.selRow, a.selIP = 0, host
+	tt.Frame() // the details open, which asks by itself
 
-	tt.Frame()
-	if err := tt.Click("NetBIOS 问名"); err != nil {
-		t.Fatalf("ask button missing: %v", err)
-	}
 	deadline := time.Now().Add(time.Second)
-	for a.netbios.busy && time.Now().Before(deadline) {
+	for calls == 0 && time.Now().Before(deadline) {
 		a.runPending()
 		time.Sleep(time.Millisecond)
 	}
 	a.runPending()
-	if got := a.hosts[host].Hostname; got != "MYPRINTER" {
-		t.Errorf("hostname = %q, want MYPRINTER", got)
+	if a.netbios.name != "MYPRINTER" {
+		t.Fatalf("name = %q after the ask, want MYPRINTER", a.netbios.name)
 	}
-	if a.netbios.note != "MYPRINTER" || a.netbios.failed {
-		t.Errorf("note = %q failed=%v, want the name without failure", a.netbios.note, a.netbios.failed)
+	tt.Frame()
+	if !tt.HasText("NetBIOS 名") {
+		t.Errorf("fact row missing, texts %q", tt.Texts())
 	}
 
-	// The button is gone once the name is there, and an existing name
-	// never gets overwritten.
-	a.hosts[host] = model.Host{IP: host, State: model.StateOnline, Hostname: "other"}
+	// Returning to the device does not ask again.
+	a.selRow, a.selIP = -1, netip.Addr{}
 	tt.Frame()
-	if err := tt.Click("NetBIOS 问名"); err == nil {
-		t.Error("ask button still up with a hostname present")
+	a.selRow, a.selIP = 0, host
+	tt.Frame()
+	a.runPending()
+	if calls != 1 {
+		t.Errorf("asked %d times, want 1", calls)
 	}
 }
 
-// TestNetBIOSMiss: a device without a name table says nothing and the
-// facts stay as they were.
-func TestNetBIOSMiss(t *testing.T) {
+// TestNetBIOSMissShowsDash: a silent device leaves the dash; no words
+// about asking or failing.
+func TestNetBIOSMissShowsDash(t *testing.T) {
 	host := ip("192.168.1.9")
 	a := newApp()
 	a.hosts[host] = model.Host{IP: host, State: model.StateOnline}
 	a.netbios.starter = func(context.Context, netip.Addr) (string, error) {
-		return strings.Repeat("Host not found.", 2), nil
+		return "", nil
 	}
 	tt := ui.NewTester(a.View, 1040, 720)
 	a.selRow, a.selIP = 0, host
 
-	tt.Frame()
-	if err := tt.Click("NetBIOS 问名"); err != nil {
-		t.Fatalf("ask button missing: %v", err)
-	}
 	deadline := time.Now().Add(time.Second)
-	for a.netbios.busy && time.Now().Before(deadline) {
+	for !a.netbios.failed && time.Now().Before(deadline) {
 		a.runPending()
 		time.Sleep(time.Millisecond)
 	}
-	a.runPending()
-	if got := a.hosts[host].Hostname; got != "" {
-		t.Errorf("hostname = %q after a miss, want empty", got)
-	}
-	if !a.netbios.failed || a.netbios.note == "" {
-		t.Errorf("note = %q failed=%v, want a failure note", a.netbios.note, a.netbios.failed)
-	}
-	// The ask is available again for another try.
 	tt.Frame()
-	if err := tt.Click("NetBIOS 问名"); err != nil {
-		t.Error("ask button not offered again after a miss")
+	if !tt.HasText("NetBIOS 名") {
+		t.Fatal("fact row missing")
+	}
+	if tt.HasText("正在询问") || tt.HasText("没有报出") || tt.HasText("没有问到") {
+		t.Errorf("ask words visible, texts %q", tt.Texts())
+	}
+	if !strings.Contains(strings.Join(tt.Texts(), "\n"), "—") {
+		t.Errorf("no dash shown, texts %q", tt.Texts())
 	}
 }

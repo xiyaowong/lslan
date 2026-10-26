@@ -2,80 +2,179 @@ package ui
 
 import (
 	"context"
+	"encoding/binary"
+	"errors"
+	"net"
 	"net/netip"
-	"os/exec"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
-
-	"lslan/internal/model"
 )
 
-// netbiosStarter runs one NetBIOS name query against ip; tests replace
-// it.
-type netbiosStarter func(ctx context.Context, ip netip.Addr) (stdout string, err error)
+// NBNS over UDP: one Node Status Request to port 137 asks a device for
+// its name table straight, where nbtstat spends seconds starting up and
+// retrying; a device that has a name answers in tens of milliseconds.
 
-// realNetBIOS queries nbtstat -A. Its output is in the machine's OEM
-// code page (GBK on Chinese Windows) whatever chcp says; the name table
-// itself is ASCII, so the lines the parse needs read the same either
-// way and undecodable bytes just stay raw.
+// netbiosStarter asks ip for its NetBIOS name; tests replace it.
+type netbiosStarter func(ctx context.Context, ip netip.Addr) (string, error)
+
+// realNetBIOS sends the status request and reads the reply: one query,
+// one retry, the whole ask done inside a second on a silent device.
 func realNetBIOS(ctx context.Context, ip netip.Addr) (string, error) {
-	cmd := exec.CommandContext(ctx, "cmd", "/c", "nbtstat -A "+ip.String())
-	out, err := cmd.Output()
+	conn, err := net.ListenUDP("udp4", &net.UDPAddr{})
 	if err != nil {
 		return "", err
 	}
-	return string(out), nil
-}
-
-// netbiosRecord is one <00> UNIQUE Registered line of the name table,
-// whose name column is up to 15 wide and may hold spaces inside.
-var netbiosRecord = regexp.MustCompile(`(?m)^\s{4}(\S(?:.{0,13}\S)?)\s{2,}<00>\s*UNIQUE\s+Registered`)
-
-// netbiosName picks the machine's NetBIOS name out of nbtstat output.
-// Empty when the query found nothing or the text does not parse.
-func netbiosName(out string) string {
-	m := netbiosRecord.FindStringSubmatch(out)
-	if len(m) < 2 {
-		return ""
+	defer conn.Close()
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return "", errors.New("nbns: no deadline on the query")
 	}
-	return strings.TrimSpace(m[1])
+	_ = conn.SetDeadline(deadline)
+
+	dst := &net.UDPAddr{IP: ip.AsSlice(), Port: nbnsPort}
+	for range 2 {
+		if _, err := conn.WriteToUDP(nbnsQuery(), dst); err != nil {
+			return "", err
+		}
+		buf := make([]byte, 1500)
+		for {
+			n, _, err := conn.ReadFromUDP(buf)
+			if err != nil {
+				break // this round's wait is over; try again
+			}
+			if name, ok := nbnsReplyName(buf[:n]); ok {
+				return name, nil
+			}
+			// Not a reply to ours (or a negative one): keep reading
+			// within the round.
+		}
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(nbnsRetryGap):
+		}
+	}
+	return "", nil // a silent device is a "no name", not an error
 }
 
-// netbiosState is the one-at-a-time query for the selected device's
-// NetBIOS name. The outcome — the name, a miss, or the failure — shows
-// at the ask button until it is answered by a hostname, so a click is
-// never without an answer (#83).
+const (
+	nbnsPort     = 137
+	nbnsRetryGap = 200 * time.Millisecond
+)
+
+// nbnsQuery builds the Node Status Request: a header naming the wildcard
+// "*", the name a status request carries, and no resource records.
+func nbnsQuery() []byte {
+	var p [50]byte
+	binary.BigEndian.PutUint16(p[0:2], 0x1337) // transaction id, fixed
+	p[5] = 0x01                                // one question, no answers
+	// The question name: "*" padded to 15, encoded per RFC 1001
+	// first-level encoding, then the length octet and the suffix.
+	enc := make([]byte, 32)
+	for i, c := range []byte(strings.Repeat(" ", 15)) {
+		enc[i*2] = 'A' + c>>4
+		enc[i*2+1] = 'A' + c&0x0F
+	}
+	enc[0], enc[1] = 'A', 'A'+0x0A // '*' = 0x2A
+	copy(p[13:], enc)
+	p[45] = byte('A')
+	p[46], p[47] = 0x00, 0x21 // NBSTAT
+	p[48], p[49] = 0x00, 0x01 // IN
+	return p[:]
+}
+
+// nbnsReplyName reads the device's name out of a Node Status Response:
+// the resource record holds a count, then per name 15 raw bytes, a type
+// byte, and flags — the machine's own is the <00> UNIQUE one.
+func nbnsReplyName(p []byte) (string, bool) {
+	if len(p) < 13 {
+		return "", false
+	}
+	flags := binary.BigEndian.Uint16(p[2:4]) & 0x8000
+	answers := binary.BigEndian.Uint16(p[6:8])
+	if flags == 0 || answers == 0 { // the reply bit set, names present
+		return "", false
+	}
+	// Skip the question section: one encoded name (32 bytes + null +
+	// type + class = 36), then the RR: name (compressed to a pointer),
+	// type, class, ttl, rdlength, and the names.
+	body := p[12:]
+	if len(body) < 36+12 {
+		return "", false
+	}
+	body = body[36:]
+	if len(body) < 12 {
+		return "", false
+	}
+	rd := binary.BigEndian.Uint16(body[10:12])
+	body = body[12:]
+	if int(rd) > len(body) || len(body) < 1 {
+		return "", false
+	}
+	count := int(body[0])
+	entries := body[1:]
+	for ; count > 0 && len(entries) >= 18; count-- {
+		name := strings.TrimRight(string(entries[:15]), " \x00")
+		entryFlags := binary.BigEndian.Uint16(entries[16:18])
+		unique := entryFlags&0x8000 == 0x0000 // the top bit is the group bit
+		if unique && name != "" && name != "__MSBROWSE__" && nbnsIsPrintable(name) {
+			return name, true
+		}
+		entries = entries[18:]
+	}
+	return "", false
+}
+
+// nbnsIsPrintable keeps the parse honest: a name table entry the device
+// actually set reads as visible text, not control bytes.
+func nbnsIsPrintable(s string) bool {
+	for _, r := range s {
+		if r < 0x20 || r > 0x7e {
+			return false
+		}
+	}
+	return true
+}
+
+// netbiosState is the one-at-a-time NetBIOS name query, run by itself
+// when a device's details open: the name is its own fact, apart from
+// the hostname the network reported, shown as its value or a dash.
 type netbiosState struct {
 	starter netbiosStarter
 	busy    bool
 	gen     int
-	// note says how the last ask went, in words a user can act on.
-	note   string
+	// asked holds the ips already asked this run, so returning to a
+	// device does not ask it again.
+	asked map[netip.Addr]bool
+	// name is the answer for the ip of the pane, "" while none.
+	name   string
 	failed bool
 }
 
-// netbiosLookup asks ip for its NetBIOS name off-thread; the answer
-// fills a missing hostname and reports itself at the button.
-func (a *app) netbiosLookup(ip netip.Addr) {
+// netbiosAskFor asks ip when it has not been asked yet; safe to call
+// on every open of the details.
+func (a *app) netbiosAskFor(ip netip.Addr) {
 	nb := &a.netbios
-	if nb.busy {
+	if nb.asked == nil {
+		nb.asked = map[netip.Addr]bool{}
+	}
+	if nb.asked[ip] || nb.busy {
 		return
 	}
 	if nb.starter == nil {
 		nb.starter = realNetBIOS
 	}
+	nb.asked[ip] = true
 	nb.busy = true
-	nb.note, nb.failed = "", false
+	nb.name, nb.failed = "", false
 	nb.gen++
 	gen := nb.gen
 	go func() {
-		// nbtstat retries its queries for ~10s on a silent device; a name
-		// that answers, answers within the first exchange, so 3s cuts the
-		// dead wait without losing live names.
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		// A name answers within the first exchange; a silent device is
+		// given one retry before the ask gives up.
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
 		out, err := nb.starter(ctx, ip)
 		a.dispatch(func() {
@@ -85,43 +184,27 @@ func (a *app) netbiosLookup(ip netip.Addr) {
 			}
 			switch {
 			case err != nil:
-				nb.note, nb.failed = "没有问到（设备可能不响应 NetBIOS）", true
-			case netbiosName(out) == "":
-				nb.note, nb.failed = "设备没有报出名字", true
+				nb.failed = true
+			case out == "":
+				nb.failed = true
 			default:
-				name := netbiosName(out)
-				nb.note, nb.failed = name, false
-				if h, ok := a.hosts[ip]; ok && h.Hostname == "" {
-					h.Hostname = name
-					a.hosts[ip] = h
-				}
+				nb.name = out
 			}
 		})
 	}()
 }
 
-// netbiosAsk is the detail panel's way to ask a hostname-less device
-// for its NetBIOS name: the ask at the facts' hostname row, with the
-// query running, its outcome, or the ask itself beside the name.
-func (a *app) netbiosAsk(c *ui.Context, t *ui.Theme, h model.Host) {
-	if h.Hostname != "" {
-		return
-	}
-	nb := &a.netbios
-	switch {
-	case nb.busy:
-		ui.Spinner(c)
-		ui.Text(c, "正在询问…").FontSize(12).TextColor(t.TextMuted)
-	default:
-		if flatButton(c, "NetBIOS 问名").Clicked() {
-			a.netbiosLookup(h.IP)
+// netbiosFact is the NetBIOS 名 line of the facts: what the device
+// itself reported over NetBIOS, which may differ from the hostname the
+// network gave it. Asked when the details open; a dash while nothing
+// came back — no words about asking or failing.
+func (a *app) netbiosFact(c *ui.Context, t *ui.Theme) {
+	ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
+		ui.Text(c, "NetBIOS 名").FontSize(12).Width(64).TextColor(t.TextMuted).Shrink(0)
+		var value string
+		if a.netbios.name != "" {
+			value = a.netbios.name
 		}
-		if nb.note != "" {
-			color := t.TextMuted
-			if nb.failed {
-				color = t.Danger
-			}
-			ui.Text(c, nb.note).FontSize(12).TextColor(color)
-		}
-	}
+		ui.Text(c, orDash(value)).FontSize(13).SingleLine()
+	})
 }

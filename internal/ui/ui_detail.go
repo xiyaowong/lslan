@@ -114,11 +114,12 @@ func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
 					c.Toast("已复制：" + value)
 				}
 			}
-			if f.label == "主机名" {
-				a.netbiosAsk(c, t, h)
-			}
 		})
 	}
+	// The NetBIOS name is its own fact, asked for by itself when the
+	// details open.
+	a.netbiosAskFor(h.IP)
+	a.netbiosFact(c, t)
 }
 
 // detailActions are what the host offers: reach it, probe its ports, or
