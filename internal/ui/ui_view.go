@@ -293,9 +293,18 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, a.scanErr).FontSize(12).TextColor(t.Danger).SingleLine()
 		}
 		ui.Box(c).Grow(1)
+		a.wakeStatus(c, t)
 		ui.Checkbox(c, &a.showOffline, "显示离线地址").FontSize(12)
+		a.wakeButton(c)
 		a.aboutButton(c, t)
 	})
+	// The wait's outcome is said once, as a toast, so the bar keeps its
+	// width however long the words are.
+	if a.wakeNote != "" {
+		c.Toast(a.wakeNote)
+		a.wakeNote = ""
+	}
+	a.wakeDialog(c, t)
 }
 
 // aboutButton is the status bar's quiet 关于: the version and the update

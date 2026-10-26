@@ -68,6 +68,11 @@ type app struct {
 	newPingTerm func() (pingTerminalIface, error)
 	dialTelnet  func(ip netip.Addr, port int) (net.Conn, error)
 	newTelnet   func(conn net.Conn) (telnetTermIface, error)
+	wakeSend    func(nic model.NIC, mac string) error
+	wakeMac     func(ip netip.Addr) string
+	wakeProbe   func(ip netip.Addr) bool
+	wakeEvery   time.Duration
+	wakeFor     time.Duration
 
 	// win is nil in tests, where dispatch queues onto pending, drained at
 	// the view's start (goroutine updates must not touch the test goroutine).
@@ -156,6 +161,11 @@ type app struct {
 	// hostname is missing; the answer fills the facts, never overwrites.
 	netbios netbiosState
 
+	// wake is the 远程唤醒 tool: a dialog off the status bar, then the
+	// wait for the woken device to answer.
+	wake     wakeState
+	wakeNote string
+
 	// Port scan state.
 	presetNames  []string
 	presetCache  []scan.Preset
@@ -205,6 +215,11 @@ func newApp() *app {
 			return net.DialTimeout("tcp", netip.AddrPortFrom(ip, uint16(port)).String(), 3*time.Second)
 		},
 		newTelnet: buildTelnetTerm,
+		wakeSend:  scan.SendWake,
+		wakeMac:   scan.MACFor,
+		wakeProbe: scan.Probe,
+		wakeEvery: wakeWaitEvery,
+		wakeFor:   wakeWaitFor,
 		hosts:     map[netip.Addr]model.Host{},
 		ports:     map[netip.Addr][]model.Port{},
 		selRow:    -1,
@@ -262,7 +277,7 @@ func (a *app) AttachWindow(opts mygo.WindowOptions) {
 	})
 	opts.Content = ui.View(a.View)
 	a.win = mygo.NewWindow(opts)
-	a.win.OnClosed(func() { a.stopPing() }) // ends the telnet test too
+	a.win.OnClosed(func() { a.stopPing(); a.stopWakeWait() }) // ends the telnet test too
 	go a.loadNICs()
 }
 
