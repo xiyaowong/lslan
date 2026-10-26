@@ -68,7 +68,11 @@ func (a *app) serviceSection(c *ui.Context, t *ui.Theme, h model.Host) {
 					ui.Textf(c, "%d", sv.Port).FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted)
 					acts := portActions(h.IP, model.Port{Number: sv.Port, Service: mdnsShort(sv)})
 					if flatButton(c, acts[0].Label).Clicked() {
-						runPortAction(c, acts[0])
+						if acts[0].Kind == portTelnet {
+							a.startTelnet(h.IP, sv.Port)
+						} else {
+							runPortAction(c, acts[0])
+						}
 					}
 				}
 			})

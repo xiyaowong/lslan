@@ -35,6 +35,10 @@ func (a *app) detail(c *ui.Context) {
 			ui.Divider(c).Shrink(0)
 			a.pingPane(c, t)
 		}
+		if a.telnetIP == h.IP && (a.telnetPending || a.telnetTerm != nil || a.telnetErr != "") {
+			ui.Divider(c).Shrink(0)
+			a.telnetPane(c, t)
+		}
 	})
 }
 
@@ -167,6 +171,40 @@ func (a *app) pingPane(c *ui.Context, t *ui.Theme) {
 	})
 }
 
+// telnetPane is the one-click telnet test docked to the panel's foot
+// (#54): a spinner while dialing, the reason when it failed, else the
+// live session — the device's output streaming in, the user's keys
+// going out — with a way to hang up.
+func (a *app) telnetPane(c *ui.Context, t *ui.Theme) {
+	ui.Column(c).Gap(8).Padding(10, 18, 12, 18).Shrink(0).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			sectionTitle(c, "远程终端测试")
+			ui.Textf(c, "%s:%d", a.telnetIP, a.telnetPort).
+				FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted)
+			ui.Box(c).Grow(1)
+			if flatButton(c, "断开").Clicked() {
+				a.stopTelnet()
+			}
+		})
+		switch {
+		case a.telnetPending:
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Spinner(c)
+				ui.Text(c, "正在连接…").FontSize(12).TextColor(t.TextMuted)
+			})
+		case a.telnetTerm == nil:
+			ui.Text(c, a.telnetErr).FontSize(12).TextColor(t.Danger)
+		default:
+			// The terminal view paints itself and has no height of its own:
+			// without an explicit height it collapses to nothing.
+			ui.Box(c).Background(t.Background).Radius(6).Clip().Children(func() {
+				a.telnetTerm.view(c).Height(180)
+			})
+			ui.Text(c, "在窗口里输入命令，回车发送").FontSize(12).TextColor(t.TextMuted)
+		}
+	})
+}
+
 // sectionTitle names a group of results.
 func sectionTitle(c *ui.Context, s string) {
 	ui.Text(c, s).FontSize(13).FontWeight(600).Shrink(0)
@@ -259,7 +297,11 @@ func (a *app) portRow(c *ui.Context, t *ui.Theme, ip netip.Addr, p model.Port) {
 		// The copy of the port itself ends every list of actions.
 		for _, act := range acts[:len(acts)-1] {
 			if flatButton(c, act.Label).Clicked() {
-				runPortAction(c, act)
+				if act.Kind == portTelnet {
+					a.startTelnet(ip, p.Number) // the in-app test (#54)
+				} else {
+					runPortAction(c, act)
+				}
 			}
 		}
 		if iconButton(c, "复制端口", drawCopy).Clicked() {
