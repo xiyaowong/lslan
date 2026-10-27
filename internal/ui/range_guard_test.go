@@ -167,13 +167,6 @@ func typeInto(t *testing.T, tt *ui.Tester, a *app, i int, s string) {
 	tt.Frame()
 }
 
-func cellLabel(i int) string {
-	if i < 3 {
-		return "IP 第 " + itoa(i+1) + " 段（网段，自动）"
-	}
-	return "IP 第 " + itoa(i+1) + " 段"
-}
-
 func itoa(n int) string { return string(rune('0' + n)) }
 
 // TestRangeBarView drives the segmented control in the tester: the NIC
@@ -202,7 +195,7 @@ func TestRangeBarView(t *testing.T) {
 	}
 
 	// A locked network cell takes no focus and no input.
-	if err := tt.Click(cellLabel(0)); err != nil {
+	if err := tt.Click(cellLabel(0) + "（网段，自动）"); err != nil {
 		t.Fatalf("click locked cell: %v", err)
 	}
 	tt.Frame()
@@ -212,7 +205,6 @@ func TestRangeBarView(t *testing.T) {
 	if a.ipCells[0] != "192" {
 		t.Errorf("locked cell changed to %q", a.ipCells[0])
 	}
-
 	// Typing past 255 caps the cell digit by digit: 259 becomes 25.
 	typeInto(t, tt, a, 3, "259")
 	if a.ipCells[3] != "25" {
