@@ -92,4 +92,3 @@ func (a *app) captionButton(c *ui.Context, t *ui.Theme, glyph *ui.SVG, label str
 
 func (a *app) minimize() { a.win.Minimize() }
 func (a *app) close()    { a.win.Close() }
-

@@ -66,4 +66,3 @@ func fit(pref, avail int, share float64, least int) int {
 	}
 	return min(max(min(pref, int(float64(avail)*share)), least), avail)
 }
-
