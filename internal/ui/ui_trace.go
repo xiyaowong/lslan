@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/netip"
 	"os/exec"
+	"strconv"
 	"syscall"
 
 	"github.com/egoist/mygo/ui"
@@ -32,7 +33,32 @@ func realTrace(ctx context.Context, ip netip.Addr) (io.ReadCloser, func() error,
 	if err := cmd.Start(); err != nil {
 		return nil, nil, err
 	}
-	return stdout, cmd.Wait, nil
+	pid := cmd.Process.Pid
+	// CommandContext kills only cmd.exe; tracert.exe is its child and
+	// would run out its 15 hops on its own. The tree goes together.
+	kill := func() { killTree(pid) }
+	// Stopping is a cancel of ctx, so the tree has to go when it fires.
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			kill()
+		case <-done:
+		}
+	}()
+	return stdout, func() error {
+		err := cmd.Wait()
+		close(done)
+		return err
+	}, nil
+}
+
+// killTree ends a process and everything it started, which is what a
+// stopped tracert needs: the hops are a child of the cmd.exe shell.
+func killTree(pid int) {
+	kill := exec.Command("taskkill", "/PID", strconv.Itoa(pid), "/T", "/F")
+	kill.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
+	_ = kill.Run()
 }
 
 // traceRoute runs the system tracert against ip, streaming each hop's

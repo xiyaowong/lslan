@@ -489,7 +489,7 @@ func (a *app) startScan() {
 	}
 	a.startPump()
 	if err := a.scanner.Start(*nic, start, end); err != nil {
-		a.scanErr = "无法开始扫描，请检查网卡后重试"
+		a.scanErr = scanStartError(err)
 		return
 	}
 	a.scanning = true
@@ -504,6 +504,19 @@ func (a *app) startScan() {
 	a.sweepPending = nil
 	a.netbiosReset() // a device may have been renamed since
 	a.selRow, a.selIP = -1, netip.Addr{}
+}
+
+// scanStartError says why a sweep was refused in words the user can act
+// on: the engine's sentinels mean different things.
+func scanStartError(err error) string {
+	switch {
+	case errors.Is(err, scan.ErrBusy):
+		return "已经在扫描了，等这次扫完再试"
+	case errors.Is(err, scan.ErrRangeReversed):
+		return "开始地址比结束地址大，请调换一下"
+	default:
+		return "无法开始扫描，请检查网卡后重试"
+	}
 }
 
 // rangeFits reports whether the range is one the app is willing to scan.

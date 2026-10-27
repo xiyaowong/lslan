@@ -15,8 +15,13 @@ import (
 func TestAppendServiceDedupes(t *testing.T) {
 	list := appendService(nil, model.Service{Name: "_http._tcp", Port: 8080})
 	list = appendService(list, model.Service{Name: "_http._tcp", Port: 80})
-	if len(list) != 1 || list[0].Port != 8080 {
-		t.Fatalf("duplicate kept or port clobbered: %+v", list)
+	if len(list) != 1 || list[0].Port != 80 {
+		t.Fatalf("duplicate kept or port not updated: %+v", list)
+	}
+	// An answer without a port never blanks a known one.
+	list = appendService(list, model.Service{Name: "_http._tcp"})
+	if len(list) != 1 || list[0].Port != 80 {
+		t.Fatalf("a missing port clobbered the known one: %+v", list)
 	}
 	list = appendService(list, model.Service{Name: "_rtsp._tcp", Port: 0})
 	list = appendService(list, model.Service{Name: "_rtsp._tcp", Port: 554})
