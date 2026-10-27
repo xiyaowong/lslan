@@ -178,6 +178,13 @@ func (a *app) commandBar(c *ui.Context, t *ui.Theme) {
 			if ui.Button(c, "整个网段").Disabled(locked).Clicked() && !locked {
 				a.fillRange()
 			}
+			// While the network octets are locked, say how to scan
+			// another subnet; once free, they are just editable cells.
+			if a.cellLock {
+				if ui.Button(c, "换个网段").Disabled(locked).Clicked() && !locked {
+					a.unlockRange()
+				}
+			}
 			ui.Box(c).Grow(1)
 			// Both options are about the sweep, so they sit together.
 			ui.Checkbox(c, &a.withPorts, "顺带扫描端口").FontSize(12).
