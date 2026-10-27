@@ -39,6 +39,7 @@ build:
 # 多行配方在 just 里合成为同一份脚本,变量可以跨行
 [script('pwsh', '-NoProfile', '-Command')]
 run mdns='':
+    if ("{{mdns}}" -notin @('', 'mdns')) { Write-Error "未知参数 '{{mdns}}',只认 mdns"; exit 1 }
     New-Item -ItemType Directory -Force build/test | Out-Null
     $dll = Get-ChildItem "$env:LOCALAPPDATA\mygo\natives\*\ghostty-vt.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($dll -and -not (Test-Path build/test/ghostty-vt.dll)) { Copy-Item $dll.FullName build/test/ }

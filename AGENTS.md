@@ -6,9 +6,9 @@
 
 lslan — 家庭局域网 IP 扫描工具(Windows)。
 
-- 技术栈:mygo native UI。文档 https://mygo.egoist.dev/docs/ui ;API 以模块缓存源码为准 `D:\go\pkg\mod\github.com\egoist\mygo@v0.6.4\ui\`
+- 技术栈:mygo native UI。文档 https://mygo.egoist.dev/docs/ui ;API 以模块缓存源码为准,定位用 `go list -m -f '{{.Dir}}' github.com/egoist/mygo`(不要写死版本号)
 - 运行时零污染:不写注册表/磁盘,数据内嵌。引入写入即违约
-- 契约:`internal/model`、`internal/scan` 公开签名冻结,改动须同步 `main.go`
+- 契约:`internal/model`、`internal/scan` 公开类型与导出函数被 UI 直接依赖,改动须全仓同步(含 `main.go`)
 - 备注功能不做
 - 终端插件靠 ghostty-vt.dll(Ghostty 的终端仿真,运行时从缓存加载):`go build` 出的裸 exe 找不到它会自己下载,`just run`/`just build` 都会摆好;只看源码可不管它
 - 界面:Fluent 2 质感,深浅主题切换(默认跟随系统),组件大气不拥挤(斟酌 gap/padding/margin),自定义标题栏;用词避免术语化,基础水平用户可循操作;窗口固定尺寸下所有文字完整可见
