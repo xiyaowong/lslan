@@ -170,16 +170,16 @@ func (a *app) startWake() {
 	w := &a.wake
 	ip, ok := a.wakeTarget()
 	if !ok {
-		w.errMsg = "IP 地址不对,要像 192.168.1.20 这样"
+		w.errMsg = "IP 地址不对，要像 192.168.1.20 这样"
 		return
 	}
 	mac, ok := scan.ParseMAC(w.mac)
 	if !ok {
-		w.errMsg = "MAC 地址不对,要有 12 位,像 aa:bb:cc:dd:ee:ff"
+		w.errMsg = "MAC 地址不对，要有 12 位，像 aa:bb:cc:dd:ee:ff"
 		return
 	}
 	if err := a.wakeSend(a.currentNIC(), mac); err != nil {
-		w.errMsg = "信号没能发出去,请检查网卡后重试"
+		w.errMsg = "信号没能发出去，请检查网卡后重试"
 		return
 	}
 	w.mac = mac
@@ -215,7 +215,7 @@ func (a *app) waitWake(ip netip.Addr) {
 				a.dispatch(func() {
 					if w.waitGen == gen {
 						w.waiting = false
-						a.wakeNote = "还没看到 " + ip.String() + " 上线,可以稍后再扫一次"
+						a.wakeNote = "还没看到 " + ip.String() + " 上线，可以稍后再扫一次"
 					}
 				})
 				return
@@ -296,13 +296,13 @@ func (a *app) currentNIC() model.NIC {
 // one-click picks, an address to type instead, the hardware address
 // filled in by itself and editable, and the send. The sweep it opens with
 // is under way or done, so a device it found but the user cannot name yet
-// is one button, 重新扫描, away.
+// is one button, 重新扫描， away.
 func (a *app) wakeDialog(c *ui.Context, t *ui.Theme) {
 	w := &a.wake
 	ui.Modal(c, &w.open, func() {
 		ui.Column(c).Gap(14).Width(380).Children(func() {
 			ui.Text(c, "远程唤醒").FontSize(15).FontWeight(600)
-			ui.Text(c, "给关机的设备发一个唤醒信号,发完会盯一会儿,看它有没有上线").
+			ui.Text(c, "给关机的设备发一个唤醒信号，发完会盯一会儿，看它有没有上线").
 				FontSize(12).TextColor(t.TextMuted)
 
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
@@ -345,7 +345,7 @@ func (a *app) wakeDialog(c *ui.Context, t *ui.Theme) {
 			ui.Column(c).Gap(6).Children(func() {
 				ui.Text(c, "设备地址").FontSize(12).TextColor(t.TextMuted)
 				if field := ui.TextInput(c, &w.ipText).Label("设备地址").
-					Placeholder("也可以直接填,如 192.168.1.20"); field.Changed() {
+					Placeholder("也可以直接填，如 192.168.1.20"); field.Changed() {
 					w.errMsg = ""
 					a.wakeFill()
 				}
@@ -354,8 +354,8 @@ func (a *app) wakeDialog(c *ui.Context, t *ui.Theme) {
 			ui.Column(c).Gap(6).Children(func() {
 				ui.Text(c, "MAC 地址").FontSize(12).TextColor(t.TextMuted)
 				ui.TextInput(c, &w.mac).Label("MAC 地址").
-					Placeholder("设备网卡地址,如 aa:bb:cc:dd:ee:ff")
-				ui.Text(c, "找到就自动填好了,找不到请照设备上的标签填写").
+					Placeholder("设备网卡地址，如 aa:bb:cc:dd:ee:ff")
+				ui.Text(c, "找到就自动填好了，找不到请照设备上的标签填写").
 					FontSize(11).TextColor(t.TextMuted)
 			})
 
@@ -394,9 +394,9 @@ func (a *app) wakeScanLabel() string {
 func (a *app) wakeScanBlocker() string {
 	switch {
 	case a.selectedNIC() == nil:
-		return "先选一块网卡,才能扫描地址"
+		return "先选一块网卡，才能扫描地址"
 	case !a.rangeFits():
-		return "范围太大或没填完,请先调整上面的地址范围"
+		return "范围太大或没填完，请先调整上面的地址范围"
 	}
 	return ""
 }
@@ -408,11 +408,11 @@ func (a *app) wakeScanNote() string {
 	case a.scanning:
 		return fmt.Sprintf("正在扫描 %d/%d…", a.progress.Scanned, a.progress.Total)
 	case a.swept():
-		return "从这次扫描的结果里选,也可以直接填地址"
+		return "从这次扫描的结果里选，也可以直接填地址"
 	case len(a.nics) == 0:
-		return "先选一块网卡,才能扫描地址"
+		return "先选一块网卡，才能扫描地址"
 	}
-	return "还没扫描过地址,点右边的按钮扫一次"
+	return "还没扫描过地址，点右边的按钮扫一次"
 }
 
 // wakeReady reports whether the send can go: an address and a MAC.
@@ -437,16 +437,16 @@ func (a *app) wakeProblem() string {
 		if strings.TrimSpace(w.ipText) == "" {
 			return ""
 		}
-		return "IP 地址不对,要像 192.168.1.20 这样"
+		return "IP 地址不对，要像 192.168.1.20 这样"
 	}
 	if strings.TrimSpace(w.mac) == "" {
-		return "没有找到这台设备的 MAC 地址,请照设备上的标签填上"
+		return "没有找到这台设备的 MAC 地址，请照设备上的标签填上"
 	}
 	if _, ok := scan.ParseMAC(w.mac); !ok {
-		return "MAC 地址不对,要有 12 位,像 aa:bb:cc:dd:ee:ff"
+		return "MAC 地址不对，要有 12 位，像 aa:bb:cc:dd:ee:ff"
 	}
 	if !a.currentNIC().IP.IsValid() {
-		return "先选一块网卡,才知道从哪发出去"
+		return "先选一块网卡，才知道从哪发出去"
 	}
 	return ""
 }
@@ -464,7 +464,7 @@ func (a *app) wakeStatus(c *ui.Context, t *ui.Theme) {
 		ui.Text(c, "正在等 "+ip+" 上线").FontSize(12).TextColor(t.TextMuted)
 		if flatButton(c, "不等了").Clicked() {
 			a.stopWakeWait()
-			a.wakeNote = "不再等 " + ip + " 上线,可以稍后再扫一次"
+			a.wakeNote = "不再等 " + ip + " 上线，可以稍后再扫一次"
 		}
 	})
 }

@@ -69,8 +69,11 @@ func runPortAction(c *ui.Context, act portAction) {
 		c.OpenURL(act.Arg)
 		c.Toast("已在浏览器打开 " + act.Arg)
 	case portLaunch:
-		_ = exec.Command(act.Arg, act.Args...).Start()
-		c.Toast("已打开系统程序处理")
+		if err := exec.Command(act.Arg, act.Args...).Start(); err != nil {
+			c.Toast("没能打开,可以复制地址后手动打开")
+			return
+		}
+		c.Toast("已交给系统打开")
 	}
 }
 

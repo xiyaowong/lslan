@@ -148,7 +148,11 @@ func (a *app) detailActions(c *ui.Context, h model.Host) {
 				a.startPing(h.IP)
 			}
 		}
-		if btn := smallButton(c, "端口扫描").Disabled(a.portScanning); !a.portScanning && btn.Clicked() {
+		portBtn := smallButton(c, "端口扫描").Disabled(a.portScanning)
+		if a.portScanning {
+			portBtn.Tooltip("正在扫描另一台设备,这台会排在后面")
+		}
+		if !a.portScanning && portBtn.Clicked() {
 			a.startPortScan(h.IP)
 		}
 		tracing := a.traceCancel != nil && a.traceIP == h.IP
@@ -164,8 +168,11 @@ func (a *app) detailActions(c *ui.Context, h model.Host) {
 			}
 		}
 		if smallButton(c, "浏览共享").Clicked() {
-			_ = exec.Command("explorer.exe", `\\`+h.IP.String()).Start()
-			c.Toast("正在打开 \\\\" + h.IP.String())
+			if err := exec.Command("explorer.exe", `\\`+h.IP.String()).Start(); err != nil {
+				c.Toast("没能打开共享,请确认设备已开机")
+			} else {
+				c.Toast("正在打开 \\\\" + h.IP.String())
+			}
 		}
 		if smallButton(c, "浏览器打开").Clicked() {
 			c.OpenURL("http://" + h.IP.String())
