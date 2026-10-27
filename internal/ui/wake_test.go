@@ -155,8 +155,8 @@ func TestWakeEntryIsGlobal(t *testing.T) {
 }
 
 // TestWakePicksOfflineDevices: the picks are the devices that went
-// offline, never the empty addresses the sweep backfilled; with none of
-// those, the devices online stand in.
+// offline, never the empty addresses the sweep backfilled; a device
+// online now is not offered at all, since there is nothing to wake.
 func TestWakePicksOfflineDevices(t *testing.T) {
 	wa := newWakeApp()
 	offline := ip("192.168.1.20")
@@ -180,10 +180,11 @@ func TestWakePicksOfflineDevices(t *testing.T) {
 		t.Errorf("pick filled %q / %q", wa.wake.ipText, wa.wake.mac)
 	}
 
-	// Nothing has gone dark: the online devices are still wakable.
+	// Nothing has gone dark: there is nothing to offer, rather than the
+	// online devices standing in for what is already up.
 	delete(wa.hosts, offline)
-	if picks := wa.wakePicks(); len(picks) != 1 || picks[0].IP != online {
-		t.Errorf("picks = %v, want the online device", picks)
+	if picks := wa.wakePicks(); len(picks) != 0 {
+		t.Errorf("picks = %v, want none", picks)
 	}
 }
 
@@ -224,7 +225,9 @@ func TestWakeSendAndWatch(t *testing.T) {
 	tt := ui.NewTester(wa.View, 1000, 680)
 	tt.Frame()
 
-	wa.startWake()
+	if note := wa.startWake(); note != "" {
+		t.Errorf("a watch that started said %q", note)
+	}
 	if len(wa.sent) != 1 || wa.sent[0] != "aa:bb:cc:dd:ee:ff" {
 		t.Fatalf("sent %q, want the normalized MAC", wa.sent)
 	}
@@ -242,6 +245,32 @@ func TestWakeSendAndWatch(t *testing.T) {
 	}
 	if len(wa.probes) == 0 || wa.probes[0] != target {
 		t.Errorf("probed %v, want %v", wa.probes, target)
+	}
+}
+
+// TestWakeOnlineDeviceDoesNotWait: sending to a device already up is
+// pointless to watch — it has no offline row to light up — so the send
+// says it is online instead of spinning at it.
+func TestWakeOnlineDeviceDoesNotWait(t *testing.T) {
+	wa := newWakeApp()
+	target := ip("192.168.1.22")
+	wa.hosts[target] = model.Host{IP: target, State: model.StateOnline}
+	wa.wake.ipText, wa.wake.mac = target.String(), "aa:bb:cc:dd:ee:ff"
+	tt := ui.NewTester(wa.View, 1000, 680)
+	tt.Frame()
+
+	note := wa.startWake()
+	if len(wa.sent) != 1 {
+		t.Fatalf("sent %q, want the frame to still go", wa.sent)
+	}
+	if wa.wake.waiting {
+		t.Error("waited on a device that was already up")
+	}
+	if note != "192.168.1.22 已在线" {
+		t.Errorf("note = %q, want the device and its state", note)
+	}
+	if len(wa.probes) != 0 {
+		t.Errorf("probed %v, want none", wa.probes)
 	}
 }
 

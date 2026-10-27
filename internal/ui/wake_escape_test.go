@@ -46,7 +46,7 @@ func TestWakeWaitCanBeStopped(t *testing.T) {
 	if !wa.wake.waiting {
 		t.Fatal("the wait did not start")
 	}
-	if err := tt.Click("不等了"); err != nil {
+	if err := tt.Click("停止等待"); err != nil {
 		t.Fatalf("click stop waiting: %v", err)
 	}
 	if wa.wake.waiting {

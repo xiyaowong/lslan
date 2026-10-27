@@ -76,25 +76,13 @@ func (a *app) wakeDevices() []model.Host {
 }
 
 // wakePicks are the quick picks: the devices that went offline since the
-// last sweep saw them — waking one is what the tool is for — plus, when
-// there are none, the ones online now.
+// last sweep saw them — waking one is what the tool is for. A device
+// online now is not offered: it is already up, and waking it would only
+// start a wait for something that never left.
 func (a *app) wakePicks() []model.Host {
-	devices := a.wakeDevices()
 	var out []model.Host
-	for _, h := range devices {
+	for _, h := range a.wakeDevices() {
 		if h.State != model.StateOffline {
-			continue
-		}
-		out = append(out, h)
-		if len(out) == wakePickLimit {
-			return out
-		}
-	}
-	if len(out) > 0 {
-		return out
-	}
-	for _, h := range devices {
-		if h.State != model.StateOnline {
 			continue
 		}
 		out = append(out, h)
@@ -167,25 +155,33 @@ func (a *app) wakeTarget() (netip.Addr, bool) {
 // startWake sends the frame and watches the device come back. Neither the
 // address nor the MAC may be off: a frame built from a mistyped one wakes
 // nothing and says nothing, so the dialog stays up with the reason.
-func (a *app) startWake() {
+// The returned note is worth saying once, "" when the send speaks for
+// itself.
+func (a *app) startWake() string {
 	w := &a.wake
 	ip, ok := a.wakeTarget()
 	if !ok {
-		w.errMsg = "IP 地址不对，要像 192.168.1.20 这样"
-		return
+		w.errMsg = "地址不对，要像 192.168.1.20 这样"
+		return ""
 	}
 	mac, ok := scan.ParseMAC(w.mac)
 	if !ok {
-		w.errMsg = "MAC 地址不对，要有 12 位，像 aa:bb:cc:dd:ee:ff"
-		return
+		w.errMsg = "MAC 不对，要 12 位，像 aa:bb:cc:dd:ee:ff"
+		return ""
 	}
 	if err := a.wakeSend(a.currentNIC(), mac); err != nil {
 		w.errMsg = "信号没能发出去，请检查网卡后重试"
-		return
+		return ""
 	}
 	w.mac = mac
 	w.open, w.errMsg = false, ""
+	if h, known := a.hosts[ip]; known && h.State == model.StateOnline {
+		// Nothing to watch: a device already up has no offline row to
+		// light up, so a wait would only sit there saying nothing new.
+		return ip.String() + " 已在线"
+	}
 	a.waitWake(ip)
+	return ""
 }
 
 // waitWake probes ip every few seconds for a short while, marking it
@@ -299,14 +295,13 @@ func (a *app) currentNIC() model.NIC {
 // is one button, 重新扫描， away.
 func (a *app) wakeDialog(c *ui.Context, t *ui.Theme) {
 	w := &a.wake
+	// note is said after the modal closes: a toast raised inside it would
+	// land behind the backdrop.
+	var note string
 	ui.Modal(c, &w.open, func() {
 		ui.Column(c).Gap(14).Width(380).Children(func() {
-			ui.Text(c, "远程唤醒").FontSize(15).FontWeight(600)
-			ui.Text(c, "给关机的设备发一个唤醒信号，发完会盯一会儿，看它有没有上线").
-				FontSize(12).TextColor(t.TextMuted)
-
 			ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, a.wakeScanNote()).FontSize(12).TextColor(t.TextMuted).Shrink(1).SingleLine()
+				ui.Text(c, "远程唤醒").FontSize(15).FontWeight(600)
 				ui.Box(c).Grow(1)
 				// The scan's own errors show in the status bar, which this
 				// dialog covers; say why here instead.
@@ -317,10 +312,13 @@ func (a *app) wakeDialog(c *ui.Context, t *ui.Theme) {
 					a.wake.wakeErr = a.scanErr
 				}
 			})
-			if a.wake.wakeErr != "" {
+			switch {
+			case a.wake.wakeErr != "":
 				ui.Text(c, a.wake.wakeErr).FontSize(12).TextColor(t.Danger).SingleLine()
-			} else if why := a.wakeScanBlocker(); why != "" {
-				ui.Text(c, why).FontSize(12).TextColor(t.TextMuted).SingleLine()
+			case a.wakeScanBlocker() != "":
+				ui.Text(c, a.wakeScanBlocker()).FontSize(12).TextColor(t.TextMuted).SingleLine()
+			case a.wakeScanNote() != "":
+				ui.Text(c, a.wakeScanNote()).FontSize(12).TextColor(t.TextMuted).SingleLine()
 			}
 
 			if picks := a.wakePicks(); len(picks) > 0 {
@@ -345,7 +343,7 @@ func (a *app) wakeDialog(c *ui.Context, t *ui.Theme) {
 			ui.Column(c).Gap(space(1)).Children(func() {
 				ui.Text(c, "设备地址").FontSize(12).TextColor(t.TextMuted)
 				if field := ui.TextInput(c, &w.ipText).Label("设备地址").
-					Placeholder("也可以直接填，如 192.168.1.20"); field.Changed() {
+					Placeholder("如 192.168.1.20"); field.Changed() {
 					w.errMsg = ""
 					a.wakeFill()
 				}
@@ -354,9 +352,7 @@ func (a *app) wakeDialog(c *ui.Context, t *ui.Theme) {
 			ui.Column(c).Gap(space(1)).Children(func() {
 				ui.Text(c, "MAC 地址").FontSize(12).TextColor(t.TextMuted)
 				ui.TextInput(c, &w.mac).Label("MAC 地址").
-					Placeholder("设备网卡地址，如 aa:bb:cc:dd:ee:ff")
-				ui.Text(c, "找到就自动填好了，找不到请照设备上的标签填写").
-					FontSize(11).TextColor(t.TextMuted)
+					Placeholder("如 aa:bb:cc:dd:ee:ff")
 			})
 
 			if msg := a.wakeProblem(); msg != "" {
@@ -369,11 +365,14 @@ func (a *app) wakeDialog(c *ui.Context, t *ui.Theme) {
 					w.open = false
 				}
 				if btn := ui.PrimaryButton(c, "发送唤醒信号").Disabled(!a.wakeReady()); btn.Clicked() {
-					a.startWake()
+					note = a.startWake()
 				}
 			})
 		})
 	})
+	if note != "" {
+		c.Toast(note)
+	}
 }
 
 // wakeScanLabel names the dialog's scan button: a sweep under way cannot
@@ -402,13 +401,13 @@ func (a *app) wakeScanBlocker() string {
 }
 
 // wakeScanNote says where the picks come from: the sweep's progress, or
-// that none has run yet.
+// that none has run yet. A sweep with results says nothing.
 func (a *app) wakeScanNote() string {
 	switch {
 	case a.scanning:
 		return fmt.Sprintf("正在扫描 %d/%d…", a.progress.Scanned, a.progress.Total)
 	case a.swept():
-		return "从这次扫描的结果里选，也可以直接填地址"
+		return ""
 	case len(a.nics) == 0:
 		return "先选一块网卡，才能扫描地址"
 	}
@@ -437,13 +436,13 @@ func (a *app) wakeProblem() string {
 		if strings.TrimSpace(w.ipText) == "" {
 			return ""
 		}
-		return "IP 地址不对，要像 192.168.1.20 这样"
+		return "地址不对，要像 192.168.1.20 这样"
 	}
 	if strings.TrimSpace(w.mac) == "" {
-		return "没有找到这台设备的 MAC 地址，请照设备上的标签填上"
+		return "MAC 没找到，填设备标签上的那一串"
 	}
 	if _, ok := scan.ParseMAC(w.mac); !ok {
-		return "MAC 地址不对，要有 12 位，像 aa:bb:cc:dd:ee:ff"
+		return "MAC 不对，要 12 位，像 aa:bb:cc:dd:ee:ff"
 	}
 	if !a.currentNIC().IP.IsValid() {
 		return "先选一块网卡，才知道从哪发出去"
@@ -461,7 +460,7 @@ func (a *app) wakeStatus(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Gap(space(1)).AlignItems(ui.Center).Shrink(0).Children(func() {
 		ui.Spinner(c)
 		ui.Text(c, "正在等 "+w.waitIP.String()+" 上线").FontSize(12).TextColor(t.TextMuted)
-		if flatButton(c, "不等了").Clicked() {
+		if flatButton(c, "停止等待").Clicked() {
 			a.stopWakeWait()
 		}
 	})

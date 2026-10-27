@@ -131,5 +131,6 @@ func MACFor(ip netip.Addr) string { return readARPTable()[ip] }
 
 // Probe reports whether ip answers now, from the adapter src: the
 // sweep's own liveness check, an ICMP echo where available, else a TCP
-// connect.
-func Probe(src, ip netip.Addr) bool { return probeHost(src, ip) }
+// connect. A device that answers TCP but drops ICMP counts as up here,
+// since a wake wait has no ARP or discovery entry to fall back on.
+func Probe(src, ip netip.Addr) bool { return probeHostFallback(src, ip, true) }
