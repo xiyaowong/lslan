@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/xml"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -123,7 +124,7 @@ func ssdpDiscoverAt(ctx context.Context, group string, hosts []netip.Addr,
 		_ = conn.SetReadDeadline(minTime(now.Add(ssdpQuiet), deadline))
 		n, raddr, err := conn.ReadFromUDP(buf)
 		if err != nil {
-			if ne, ok := err.(net.Error); ok && ne.Timeout() {
+			if ne, ok := errors.AsType[net.Error](err); ok && ne.Timeout() {
 				continue
 			}
 			break

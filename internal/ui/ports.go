@@ -44,10 +44,8 @@ func (a *app) sweepPorts() {
 	go func() {
 		var wg sync.WaitGroup
 		for _, ip := range ips {
-			wg.Add(1)
 			sem <- struct{}{}
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				defer func() { <-sem }()
 				ports, err := a.scanPorts(context.Background(), src, ip, preset.Ports)
 				a.dispatch(func() {
@@ -64,7 +62,7 @@ func (a *app) sweepPorts() {
 						a.ports[ip] = ports
 					}
 				})
-			}()
+			})
 		}
 		wg.Wait()
 	}()

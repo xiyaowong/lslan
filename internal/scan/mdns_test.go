@@ -3,7 +3,6 @@
 package scan
 
 import (
-	"context"
 	"net/netip"
 	"testing"
 
@@ -50,7 +49,7 @@ func TestMDNSHandleMerges(t *testing.T) {
 		host string
 		svcs []model.Service
 	}
-	r := &mdnsRunner{ctx: context.Background(), merge: func(ip netip.Addr, host, kind string, svcs []model.Service) {
+	r := &mdnsRunner{ctx: t.Context(), merge: func(ip netip.Addr, host, kind string, svcs []model.Service) {
 		got.ip, got.host, got.svcs = ip, host, svcs
 	}}
 	src := netip.MustParseAddr("192.168.1.5")
@@ -120,7 +119,7 @@ func TestMDNSHandleTXT(t *testing.T) {
 			t.Fatal(err)
 		}
 		var got string
-		r := &mdnsRunner{ctx: context.Background(),
+		r := &mdnsRunner{ctx: t.Context(),
 			merge: func(_ netip.Addr, _, kind string, _ []model.Service) { got = kind }}
 		r.handle(netip.MustParseAddr("192.168.1.5"), pkt)
 		if got != c.want {
@@ -141,7 +140,7 @@ func TestMDNSHandleMetaAddsType(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &mdnsRunner{ctx: context.Background(), merge: func(netip.Addr, string, string, []model.Service) {}}
+	r := &mdnsRunner{ctx: t.Context(), merge: func(netip.Addr, string, string, []model.Service) {}}
 	r.handle(netip.MustParseAddr("192.168.1.5"), pkt)
 	r.mu.Lock()
 	_, ok := r.types["_xbox._tcp"]
@@ -153,7 +152,7 @@ func TestMDNSHandleMetaAddsType(t *testing.T) {
 
 func TestMDNSHandleRejectsJunk(t *testing.T) {
 	src := netip.MustParseAddr("1.2.3.4")
-	r := &mdnsRunner{ctx: context.Background(), merge: func(netip.Addr, string, string, []model.Service) {}}
+	r := &mdnsRunner{ctx: t.Context(), merge: func(netip.Addr, string, string, []model.Service) {}}
 	for _, pkt := range [][]byte{nil, {1, 2, 3}} {
 		r.handle(src, pkt)
 	}

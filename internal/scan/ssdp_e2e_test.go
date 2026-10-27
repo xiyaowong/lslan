@@ -67,7 +67,7 @@ func TestSSDPDiscoverEndToEnd(t *testing.T) {
 	}()
 	defer close(stop)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	var got []ssdpDevice
 	group := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
