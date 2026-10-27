@@ -39,7 +39,7 @@ func (a *app) titleBar(c *ui.Context, t *ui.Theme) {
 			if a.logo != nil {
 				ui.Image(c, a.logo).Size(16, 16).Radius(4).Shrink(0)
 			}
-			ui.Text(c, "局域网 IP 扫描").FontSize(13).FontWeight(600).TextColor(t.Text)
+			ui.Text(c, "局域网扫描").FontSize(13).FontWeight(600).TextColor(t.Text)
 		})
 		ui.Box(c).Grow(1)
 		a.themeButton(c, t)
