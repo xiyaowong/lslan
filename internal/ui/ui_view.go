@@ -356,7 +356,7 @@ func (a *app) aboutButton(c *ui.Context, t *ui.Theme) {
 		ui.Column(c).Gap(10).Padding(14).Width(280).Children(func() {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, "局域网 IP 扫描").FontSize(13).FontWeight(600).Shrink(0)
-				ui.Text(c, mygo.App.Version()).FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted)
+				ui.Text(c, mygo.App.Version()).FontSize(12).TextColor(t.TextMuted)
 			})
 			ui.Text(c, "作者 xiyaowong · MIT 许可证").FontSize(12).TextColor(t.TextMuted)
 			a.updateRow(c, t)

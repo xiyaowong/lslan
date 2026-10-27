@@ -177,7 +177,11 @@ type app struct {
 	portScanning bool
 	portIP       netip.Addr
 	portErr      string
-	portScroll   ui.ScrollState
+	// portWanted is the host the user asked to scan while another was
+	// being scanned; it starts when that one ends.
+	portWanted       netip.Addr
+	portWantedPreset int
+	portScroll       ui.ScrollState
 	// ports is the cache of port scan results, by address: a key present
 	// means the host has been asked (an empty slice, that nothing was
 	// open). The engine knows nothing of ports, so they live apart from
@@ -836,30 +840,53 @@ func (a *app) sweepPorts() {
 func (a *app) startPortScan(ip netip.Addr) { a.startPortScanPreset(ip, 0) }
 
 // startPortScanPreset probes ip with the preset at index i of presets().
+// One scan runs at a time; a host the user asked for while another is
+// being scanned waits its turn rather than being dropped.
 func (a *app) startPortScanPreset(ip netip.Addr, i int) {
-	if a.portScanning {
-		return
-	}
 	ps := a.presets()
 	if i < 0 || i >= len(ps) {
 		return
 	}
-	preset := ps[i]
+	if a.portScanning {
+		a.portWanted = ip
+		a.portWantedPreset = i
+		return
+	}
+	a.runPortScan(ip, i)
+}
+
+// runPortScan starts one scan; its gen drops a result the user has since
+// superseded with a new sweep.
+func (a *app) runPortScan(ip netip.Addr, i int) {
+	preset := a.presets()[i]
 	ctx, cancel := context.WithCancel(context.Background())
 	src := a.sourceAddr()
 	a.portScanning = true
 	a.portIP = ip
 	a.portErr = ""
+	a.portGen++
+	gen := a.portGen
 	go func() {
 		ports, err := a.scanPorts(ctx, src, ip, preset.Ports)
 		cancel()
 		a.dispatch(func() {
+			if a.portGen != gen {
+				return // a new sweep owns the cache now
+			}
 			a.portScanning = false
 			if err != nil {
 				a.portErr = "端口扫描没跑完，请稍后再试"
-				return
+			} else {
+				a.ports[ip] = ports
 			}
-			a.ports[ip] = ports
+			// The host the user moved to meanwhile gets its turn.
+			if want := a.portWanted; want.IsValid() {
+				preset := a.portWantedPreset
+				a.portWanted = netip.Addr{}
+				if _, done := a.ports[want]; !done {
+					a.runPortScan(want, preset)
+				}
+			}
 		})
 	}()
 }
