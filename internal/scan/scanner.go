@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/netip"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -23,6 +24,9 @@ const (
 	arpProbeTimeout = 300 * time.Millisecond
 	arpCacheWindow  = 500 * time.Millisecond
 	eventBuf        = 1024
+	// progressEvery paces the progress line: it shows a percentage, and a
+	// repaint per address tells the user nothing extra.
+	progressEvery = 100 * time.Millisecond
 	// finalEventWait bounds the last event's delivery: a caller that has
 	// stopped draining must not wedge the sweep goroutines.
 	finalEventWait = 2 * time.Second
@@ -134,13 +138,18 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 
 	hosts := make(map[uint32]*model.Host)
 	var dataMu sync.Mutex // guards hosts
+	// seen holds the fingerprint of what the interface was last told about
+	// each host, so the final pass can skip the ones already up to date.
+	seen := make(map[uint32]string)
 	var scanned, online atomic.Int64
 	var next atomic.Int64
 
-	// snapshotHost copies a host record so events never alias live state.
+	// snapshotHost copies a host record so events never alias live state,
+	// and remembers what the interface will now know of it.
 	snapshotHost := func(key uint32) *model.Host {
 		dataMu.Lock()
 		h := *hosts[key]
+		seen[key] = fingerprint(&h)
 		dataMu.Unlock()
 		return &h
 	}
@@ -232,6 +241,10 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 	}
 
 	var wg sync.WaitGroup
+	// The progress line is a percentage on screen; one event per address
+	// would cost the interface a repaint per address for no new
+	// information. Sent at most this often, and once at the end.
+	var lastProgress atomic.Int64
 	for range sweepWorkers {
 		wg.Go(func() {
 			for {
@@ -256,11 +269,16 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 					enrichHost(key, h)
 				}
 				scanned.Add(1)
-				s.emit(ctx, Event{Kind: EventProgress, Progress: progress(total, &scanned, &online)})
+				now := time.Now().UnixNano()
+				if prev := lastProgress.Load(); now-prev >= int64(progressEvery) &&
+					lastProgress.CompareAndSwap(prev, now) {
+					s.emit(ctx, Event{Kind: EventProgress, Progress: progress(total, &scanned, &online)})
+				}
 			}
 		})
 	}
 	wg.Wait()
+	s.emit(ctx, Event{Kind: EventProgress, Progress: progress(total, &scanned, &online)})
 
 	// Consistency pass. Addresses the ICMP burst left in the ARP cache
 	// but that did not answer ping get a quick TCP liveness check
@@ -337,20 +355,31 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 		}
 	}
 
-	// Final pass: wait for the remaining lookups, re-emit every host
-	// with everything filled in, then the final progress.
+	// Final pass: wait for the remaining lookups, then re-emit only the
+	// hosts that changed since their last event — a host whose facts all
+	// arrived with it would otherwise be sent twice, and every send costs
+	// the interface a repaint.
 	names.wait()
 	dataMu.Lock()
-	keys := make([]uint32, 0, len(hosts))
-	for k := range hosts {
-		keys = append(keys, k)
+	var stale []uint32
+	for k, h := range hosts {
+		if seen[k] != fingerprint(h) {
+			stale = append(stale, k)
+		}
 	}
 	dataMu.Unlock()
-	slices.Sort(keys)
-	for _, k := range keys {
+	slices.Sort(stale)
+	for _, k := range stale {
 		s.emit(ctx, Event{Kind: EventHost, Host: snapshotHost(k)})
 	}
 	s.emitFinal(ctx, Event{Kind: EventDone, Progress: progress(total, &scanned, &online)})
+}
+
+// fingerprint is what the interface shows of a host; two snapshots with the
+// same fingerprint look the same on screen.
+func fingerprint(h *model.Host) string {
+	return h.Hostname + "\x00" + h.MAC + "\x00" + h.Vendor +
+		"\x00" + strconv.Itoa(len(h.Services))
 }
 
 // hostnames runs bounded-concurrency reverse DNS for discovered hosts
