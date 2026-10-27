@@ -65,8 +65,8 @@ func (a *app) themeButton(c *ui.Context, t *ui.Theme) {
 	if a.dark {
 		mark, tip = moonSVG, "当前是深色，点击切换到浅色"
 	}
-	b.Tooltip(tip)
-	b.Children(func() { ui.Icon(c, mark).Size(14, 14).Label("切换深浅颜色") })
+	b.Tooltip(tip).Label("切换深浅颜色")
+	b.Children(func() { ui.Icon(c, mark).Size(14, 14) })
 	if b.Clicked() && a.win != nil {
 		a.toggleTheme()
 	}
@@ -83,8 +83,8 @@ func (a *app) captionButton(c *ui.Context, t *ui.Theme, glyph *ui.SVG, label str
 	if b.Pressed() || b.Hovered() {
 		bg, fg = hover, ink
 	}
-	b.Background(bg).TextColor(fg)
-	b.Children(func() { ui.Icon(c, glyph).Size(10, 10).Label(label) })
+	b.Background(bg).TextColor(fg).Tooltip(label).Label(label)
+	b.Children(func() { ui.Icon(c, glyph).Size(10, 10) })
 	if b.Clicked() && a.win != nil {
 		fn()
 	}

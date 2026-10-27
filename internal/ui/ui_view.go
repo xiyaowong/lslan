@@ -300,7 +300,9 @@ func (a *app) prevEditable(i int) int {
 // offline filter.
 func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Height(32).Padding(0, gutter).Gap(18).AlignItems(ui.Center).Shrink(0).Children(func() {
-		a.stat(c, t, "在线", a.onlineCount(), true)
+		// The green dot is about who is here now; it should not stay lit
+		// when nobody is.
+		a.stat(c, t, "在线", a.onlineCount(), a.onlineCount() > 0)
 		a.stat(c, t, "已发现", a.discoveredCount(), false)
 		a.stat(c, t, "总数", a.progress.Total, false)
 		ui.Box(c).Grow(1)
@@ -543,7 +545,7 @@ func stateDot(t *ui.Theme, h model.Host) ui.Color {
 	case model.StateOffline:
 		return t.TextMuted
 	}
-	return t.Border
+	return t.TextMuted
 }
 
 // stateLabel is a host's reachability in words.

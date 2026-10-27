@@ -296,12 +296,15 @@ func (a *app) toggleTheme() {
 	}
 }
 
-// setDark shows the given appearance; the terminal, which paints itself,
-// is told apart from the theme.
+// setDark shows the given appearance; the terminals paint themselves, so
+// they are told apart from the theme.
 func (a *app) setDark(dark bool) {
 	a.dark = dark
 	if a.pingTerm != nil {
 		a.pingTerm.setDark(dark)
+	}
+	if a.telnetTerm != nil {
+		a.telnetTerm.setDark(dark)
 	}
 }
 
