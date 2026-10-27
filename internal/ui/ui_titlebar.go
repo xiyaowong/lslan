@@ -20,23 +20,26 @@ var (
 		`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`))
 )
 
-// The caption is 44 high (TitleBarHeight); Fluent caption buttons are 46
-// wide on it, quiet until hovered, the close button alone in the danger
-// red — the system's own caption would have shown a disabled maximize
-// button where the app has none (#47).
+// Fluent caption buttons are 46 wide, quiet until hovered, the close
+// button alone in the danger red — the system's own caption would have
+// shown a disabled maximize button where the app has none (#47).
 const captionBtnW = 46
+
+// TitleBarHeight is the caption's height; main.go passes it to the window
+// so the drawn bar lines up with it.
+const TitleBarHeight = 44
 
 // titleBar draws the app's own caption: the icon and the name at the left,
 // the drag strip between, the appearance button, and minimize and close
 // buttons at the right, the window's own caption being hidden
 // (HideWindowButtons).
 func (a *app) titleBar(c *ui.Context, t *ui.Theme) {
-	ui.Row(c).Height(44).Shrink(0).DragWindow().Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(0, 0, 0, 18).Shrink(0).Children(func() {
+	ui.Row(c).Height(TitleBarHeight).Shrink(0).DragWindow().Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(0, 0, 0, gutter).Shrink(0).Children(func() {
 			if a.logo != nil {
 				ui.Image(c, a.logo).Size(16, 16).Radius(4).Shrink(0)
 			}
-			ui.Text(c, "局域网 IP 扫描").FontSize(12.5).FontWeight(600).TextColor(t.Text)
+			ui.Text(c, "局域网 IP 扫描").FontSize(13).FontWeight(600).TextColor(t.Text)
 		})
 		ui.Box(c).Grow(1)
 		a.themeButton(c, t)
