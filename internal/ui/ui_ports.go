@@ -91,7 +91,17 @@ func serviceURL(scheme string, ip netip.Addr, port int) string {
 	return u
 }
 
-// portLabel is the service in words a home user knows.
+// portTip keeps the protocol name available on hover, where the plain
+// label replaces it.
+func portTip(p model.Port) string {
+	if p.Service == "" {
+		return ""
+	}
+	return p.Service
+}
+
+// portLabel is the service in words a home user knows; a service with no
+// plain name still gets a word rather than an English protocol name.
 func portLabel(p model.Port) string {
 	switch {
 	case p.Number == 21 || p.Service == "ftp":
@@ -103,12 +113,21 @@ func portLabel(p model.Port) string {
 	case p.Number == 80 || p.Number == 8080 || p.Number == 443 || p.Number == 8443 ||
 		p.Service == "http" || p.Service == "https":
 		return "网页"
-	case p.Number == 139 || p.Number == 445:
+	case p.Number == 139 || p.Number == 445 || p.Service == "smb" || p.Service == "netbios-ssn":
 		return "文件共享"
 	case p.Number == 554 || p.Number == 8554 || p.Number == 10554 || p.Service == "rtsp":
 		return "视频流"
 	case p.Number == 3389:
 		return "远程桌面"
+	case p.Number == 9100 || p.Number == 515 || p.Number == 631 || p.Service == "printer" || p.Service == "ipp":
+		return "打印服务"
+	case p.Number == 1433 || p.Number == 3306 || p.Number == 5432 || p.Number == 6379 ||
+		p.Service == "mssql" || p.Service == "mysql" || p.Service == "postgresql" || p.Service == "redis":
+		return "数据库"
+	case p.Number == 53 || p.Service == "dns":
+		return "域名服务"
+	case p.Number == 1900 || p.Service == "upnp":
+		return "设备发现"
 	}
-	return orDash(p.Service)
+	return "其他服务"
 }

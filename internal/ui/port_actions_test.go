@@ -81,8 +81,9 @@ func TestPortLabels(t *testing.T) {
 		{model.Port{Number: 23, Service: "telnet"}, "远程终端"},
 		{model.Port{Number: 21}, "文件传输"},
 		{model.Port{Number: 3389}, "远程桌面"},
-		{model.Port{Number: 5432, Service: "postgres"}, "postgres"},
-		{model.Port{Number: 1234}, "—"},
+		{model.Port{Number: 5432, Service: "postgresql"}, "数据库"},
+		{model.Port{Number: 9100, Service: "printer"}, "打印服务"},
+		{model.Port{Number: 1234}, "其他服务"},
 	}
 	for _, c := range cases {
 		if got := portLabel(c.port); got != c.want {
