@@ -1,7 +1,11 @@
 package ui
 
 import (
+	"errors"
+	"fmt"
 	"net"
+	"net/netip"
+	"syscall"
 
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
@@ -175,4 +179,70 @@ func (l *telnetLink) answer(opt byte) {
 
 func (l *telnetLink) writeCmd(cmd, opt byte) {
 	_, _ = l.Conn.Write([]byte{iacByte, cmd, opt})
+}
+
+// startTelnet opens the one-click test of a telnet port (#54): the
+// device is dialed off the interface so a slow or dead one never freezes
+// it, and the session lands in the panel's terminal pane when it answers.
+func (a *app) startTelnet(ip netip.Addr, port int) {
+	a.stopPing()
+	a.stopTrace()
+	a.closePing() // the foot holds one output at a time
+	a.closeTrace()
+	a.telnetGen++
+	gen := a.telnetGen
+	a.telnetIP, a.telnetPort = ip, port
+	a.telnetPending, a.telnetErr = true, ""
+	go func() {
+		conn, err := a.dialTelnet(ip, port)
+		a.dispatch(func() {
+			if a.telnetGen != gen {
+				if conn != nil {
+					conn.Close()
+				}
+				return // ended while dialing
+			}
+			a.telnetPending = false
+			if err != nil {
+				a.telnetErr = telnetDialError(err, ip, port)
+				return
+			}
+			term, err := a.newTelnet(conn)
+			if err != nil {
+				conn.Close()
+				a.telnetErr = "打不开实时输出窗口，无法测试"
+				return
+			}
+			a.telnetTerm = term
+			term.setDark(a.dark)
+		})
+	}()
+}
+
+// telnetDialError turns a failed dial into words a home user can act on:
+// a timeout means nothing answered, a refusal means the port is closed,
+// and anything else is a guess.
+func telnetDialError(err error, ip netip.Addr, port int) string {
+	where := fmt.Sprintf("%s:%d", ip, port)
+	var ne net.Error
+	switch {
+	case errors.As(err, &ne) && ne.Timeout():
+		return where + " 没有响应，设备可能已关机"
+	case errors.Is(err, syscall.ECONNREFUSED):
+		return where + " 拒绝了连接，远程登录可能没有开启"
+	default:
+		return "连接 " + where + " 失败，设备可能没开远程登录"
+	}
+}
+
+// stopTelnet ends the test and clears its pane; safe with none running.
+func (a *app) stopTelnet() {
+	a.telnetGen++
+	if a.telnetTerm != nil {
+		a.telnetTerm.close()
+		a.telnetTerm = nil
+	}
+	a.telnetPending = false
+	a.telnetErr = ""
+	a.telnetIP = netip.Addr{}
 }
