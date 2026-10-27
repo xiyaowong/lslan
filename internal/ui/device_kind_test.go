@@ -23,7 +23,14 @@ func TestDeviceKind(t *testing.T) {
 		{"printer port", model.Host{}, []model.Port{{Number: 9100, Open: true}}, kindPrinter},
 		{"camera by model", model.Host{Model: "Hikvision IPC-HDW1230S"}, nil, kindCamera},
 		{"cast", model.Host{Services: []model.Service{{Name: "_googlecast._tcp", Port: 8009}}}, nil, kindTV},
-		{"nas port", model.Host{}, []model.Port{{Number: 445, Open: true}}, kindNAS},
+		{"nas port", model.Host{}, []model.Port{{Number: 2049, Open: true}}, kindNAS},
+		{"nas service", model.Host{Services: []model.Service{{Name: "_smb._tcp", Port: 445}}}, nil, kindNAS},
+		// 445 is what every Windows machine opens for its own file
+		// sharing, so it alone is no evidence of a storage box.
+		{"smb port alone is no nas", model.Host{}, []model.Port{{Number: 445, Open: true}}, kindUnknown},
+		// The name a machine answers to outranks the ports it opens:
+		// a laptop with 445 open is a computer, not a NAS.
+		{"hostname over smb port", model.Host{Hostname: "wongxy.laptop"}, []model.Port{{Number: 445, Open: true}}, kindComputer},
 		{"nothing", model.Host{}, nil, kindUnknown},
 		// A vendor says who made a device, not what it is: TP-Link makes
 		// routers, cameras and plugs alike, so the vendor alone is no clue.
