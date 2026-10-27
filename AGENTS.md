@@ -15,14 +15,14 @@ lslan — 家庭局域网 IP 扫描工具(Windows)。
 
 ## 命令
 
-用 justfile:`just dev` / `just check`(fmt+vet+test)/ `just build` / `just run`(可选 `mdns` 参数)/ `just clean`
+用 justfile:`just dev` / `just check`(fmt+vet+test) / `just build` / `just run`(可选 `mdns` 参数) / `just clean` / `just release-check <版本>`(发版前核对版本一致)
 
-`just run` 构建到固定路径 `build/test/lslan-test.exe` 再启动(防火墙授权按 exe 路径记,固定路径授权一次),默认关 mDNS(并发跑会抢 UDP 口),`just run mdns` 保留
+`just run` 构建到固定路径 `build/test/lslan-test.exe` 再启动(防火墙授权按 exe 路径记,固定路径授权一次),默认关 mDNS(并发跑会抢 UDP 口),`just run mdns` 保留;顺便把 ghostty-vt.dll 从缓存复制到 exe 旁
 
 ## 结构
 
 - `main.go` — 仅启动窗口
-- `internal/ui` — app 状态与视图(工具栏/表格/详情面板)
+- `internal/ui` — app 状态与视图(命令栏/表格/详情面板)
 - `internal/model` — 共享类型
 - `internal/scan` — 引擎:网卡、ICMP、ARP、OUI、端口、Ping
 
