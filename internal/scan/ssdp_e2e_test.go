@@ -78,7 +78,7 @@ func TestSSDPDiscoverEndToEnd(t *testing.T) {
 		t.Fatal("the fake device was not reported")
 	}
 	d := got[0]
-	if d.Model != "UE55TU8000" || d.Vendor != "Samsung Electronics" || d.Type != "MediaRenderer" {
+	if d.Model != "UE55TU8000" || d.Vendor != "Samsung Electronics" {
 		t.Errorf("reported %+v", d)
 	}
 	if !strings.Contains(srv.URL, "http://") {

@@ -357,7 +357,7 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 		}
 		dataMu.Unlock()
 		slices.SortFunc(found, func(a, b netip.Addr) int { return a.Compare(b) })
-		ssdpDiscover(ctx, nic, found, func(ip netip.Addr, d ssdpDevice) {
+		ssdpDiscover(ctx, found, func(ip netip.Addr, d ssdpDevice) {
 			if ctx.Err() != nil {
 				return
 			}

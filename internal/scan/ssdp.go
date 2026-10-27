@@ -10,46 +10,55 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"lslan/internal/model"
 )
 
 // SSDP is where a device says what it is in words: a TV names its model,
 // a router its product, a printer its family. mDNS only covers devices
 // that speak it — Apple, Chromecast, printers — while most routers, TVs
-// and NAS boxes answer UPnP and nothing else.
+// and NAS boxes answer UPnP and nothing else. For a domestic box, whose
+// model is an internal code, this is often the only name it gives at all.
 const (
-	ssdpGroup  = "239.255.255.250:1900"
-	ssdpSearch = "M-SEARCH * HTTP/1.1\r\n" +
+	ssdpGroup = "239.255.255.250:1900"
+	// A search is this header with the search type appended.
+	ssdpHeader = "M-SEARCH * HTTP/1.1\r\n" +
 		"HOST: 239.255.255.250:1900\r\n" +
 		"MAN: \"ssdp:discover\"\r\n" +
 		"MX: 2\r\n" +
-		"ST: ssdp:all\r\n\r\n"
+		"ST: "
 	ssdpWait     = 2 * time.Second
 	ssdpQuiet    = 400 * time.Millisecond // stop after this long with nothing new
 	ssdpFetchMax = 8                      // descriptions fetched at once
 	ssdpDocLimit = 64 << 10
 )
 
+// ssdpSearches are the search types asked for. ssdp:all is what every
+// device must answer, but a few only answer the type they are, so the
+// root device and the gateway type — the two that name a router — are
+// asked for too. Answers are unicast back to the search's source, so
+// these cost two more multicast packets and no more.
+var ssdpSearches = []string{
+	"ssdp:all",
+	"upnp:rootdevice",
+	"urn:schemas-upnp-org:device:InternetGatewayDevice:1",
+}
+
 // ssdpDevice is what one device's description adds.
 type ssdpDevice struct {
-	Model  string // modelName, else modelNumber
+	Model  string // the product name the device gives, in that order of trust
 	Vendor string // manufacturer, when the ARP table had no OUI name
-	Type   string // the UPnP device type, e.g. "MediaRenderer"
 }
 
 // ssdpDiscover asks every device on the network what it is, and reports
 // each description as it arrives. Unicast to each host already found is
 // cheaper and surer than relying on the multicast reply, so it does both:
-// one multicast M-SEARCH, then one per host.
+// the searches multicast once each, then one per host.
 //
 // Every failure is silent: a network without UPnP, or a device that
 // answers but has no description, must not break the sweep.
-func ssdpDiscover(ctx context.Context, nic model.NIC, hosts []netip.Addr,
+func ssdpDiscover(ctx context.Context, hosts []netip.Addr,
 	report func(ip netip.Addr, d ssdpDevice)) {
 	ssdpDiscoverAt(ctx, ssdpGroup, hosts, report)
 }
@@ -65,20 +74,26 @@ func ssdpDiscoverAt(ctx context.Context, group string, hosts []netip.Addr,
 	}
 	defer conn.Close()
 
-	send := func(dst *net.UDPAddr) {
-		_, _ = conn.WriteToUDP([]byte(ssdpSearch), dst)
+	send := func(dst *net.UDPAddr, st string) {
+		_, _ = conn.WriteToUDP([]byte(ssdpHeader+st+"\r\n\r\n"), dst)
 	}
-	if g, err := net.ResolveUDPAddr("udp4", group); err == nil {
-		send(g)
+	g, err := net.ResolveUDPAddr("udp4", group)
+	if err != nil {
+		return
+	}
+	// Every search type goes to the group — three multicast packets in
+	// all — while the per-host unicast asks only the catch-all type: a
+	// network of 254 addresses would otherwise carry three times as many
+	// packets to find the handful of devices that ignore ssdp:all.
+	for _, st := range ssdpSearches {
+		send(g, st)
 	}
 	for _, ip := range hosts {
 		if ctx.Err() != nil {
 			return
 		}
 		// The port comes from the group so one call decides both.
-		if g, err := net.ResolveUDPAddr("udp4", group); err == nil {
-			send(&net.UDPAddr{IP: ip.AsSlice(), Port: g.Port})
-		}
+		send(&net.UDPAddr{IP: ip.AsSlice(), Port: g.Port}, ssdpSearches[0])
 	}
 
 	// Collect the LOCATION of each answer, keyed by that URL: a device
@@ -171,7 +186,6 @@ func ssdpLocation(reply string) string {
 // upnpDevice is the part of a UPnP description worth keeping; the
 // document nests them, and encoding/xml finds them by name at any depth.
 type upnpDevice struct {
-	DeviceType   string `xml:"deviceType"`
 	FriendlyName string `xml:"friendlyName"`
 	Manufacturer string `xml:"manufacturer"`
 	ModelName    string `xml:"modelName"`
@@ -194,6 +208,9 @@ func fetchDescription(ctx context.Context, client *http.Client, url string) (ssd
 }
 
 // parseDescription reads the device element out of a UPnP description.
+// modelName is the model proper; a domestic box often leaves it out and
+// puts the product's name in friendlyName instead, which is the one place
+// it names itself in words.
 func parseDescription(r io.Reader) (ssdpDevice, bool) {
 	var root struct {
 		Device upnpDevice `xml:"device"`
@@ -202,31 +219,15 @@ func parseDescription(r io.Reader) (ssdpDevice, bool) {
 		return ssdpDevice{}, false
 	}
 	d := root.Device
-	model := strings.TrimSpace(d.ModelName)
-	if model == "" {
-		model = strings.TrimSpace(d.ModelNumber)
-	}
-	if model == "" {
-		model = strings.TrimSpace(d.ModelDesc)
+	model := d.ModelName
+	for _, alt := range []string{d.ModelNumber, d.ModelDesc, d.FriendlyName} {
+		if strings.TrimSpace(model) != "" {
+			break
+		}
+		model = alt
 	}
 	return ssdpDevice{
-		Model:  model,
+		Model:  strings.TrimSpace(model),
 		Vendor: strings.TrimSpace(d.Manufacturer),
-		Type:   upnpShortType(d.DeviceType),
 	}, true
-}
-
-// upnpShortType turns "urn:schemas-upnp-org:device:MediaRenderer:1" into
-// "MediaRenderer".
-func upnpShortType(t string) string {
-	parts := strings.Split(t, ":")
-	if len(parts) < 4 {
-		return ""
-	}
-	// Drop the version suffix when there is one.
-	name := parts[len(parts)-1]
-	if _, err := strconv.Atoi(name); err == nil && len(parts) >= 5 {
-		name = parts[len(parts)-2]
-	}
-	return name
 }

@@ -27,24 +27,9 @@ func TestSSDPLocation(t *testing.T) {
 	}
 }
 
-// TestUPNPShortType: the device type is a URN; the class is the part
-// that says what the device is.
-func TestUPNPShortType(t *testing.T) {
-	cases := map[string]string{
-		"urn:schemas-upnp-org:device:MediaRenderer:1":         "MediaRenderer",
-		"urn:schemas-upnp-org:device:InternetGatewayDevice:2": "InternetGatewayDevice",
-		"upnp:rootdevice": "",
-		"":                "",
-	}
-	for in, want := range cases {
-		if got := upnpShortType(in); got != want {
-			t.Errorf("upnpShortType(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
 // TestDescriptionParse: a real description nests the device element; the
-// model is what tells two identical rows apart.
+// model is what tells two identical rows apart. A domestic box names no
+// model at all, so its friendlyName is the one name it gives.
 func TestDescriptionParse(t *testing.T) {
 	doc := `<?xml version="1.0"?>
 <root xmlns="urn:schemas-upnp-org:device-1-0">
@@ -60,7 +45,12 @@ func TestDescriptionParse(t *testing.T) {
 	if !ok {
 		t.Fatal("a valid description did not parse")
 	}
-	if d.Model != "UE55TU8000" || d.Vendor != "Samsung Electronics" || d.Type != "MediaRenderer" {
+	if d.Model != "UE55TU8000" || d.Vendor != "Samsung Electronics" {
 		t.Errorf("parsed %+v", d)
+	}
+
+	unnamed := `<root><device><friendlyName>小米路由器</friendlyName></device></root>`
+	if d, ok := parseDescription(strings.NewReader(unnamed)); !ok || d.Model != "小米路由器" {
+		t.Errorf("a description without a model parsed %+v, %v", d, ok)
 	}
 }
