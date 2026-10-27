@@ -110,7 +110,9 @@ var serviceNames = map[int]string{
 }
 
 const (
-	portTimeout = 500 * time.Millisecond
+	// A LAN answers in a millisecond or two; half a second of waiting per
+	// port only made a sweep of many hosts slow.
+	portTimeout = 250 * time.Millisecond
 	portWorkers = 32
 )
 
@@ -135,25 +137,32 @@ func ScanPortsFrom(ctx context.Context, src, ip netip.Addr, ports []int) ([]mode
 		return nil, errInvalidAddress
 	}
 	results := make([]model.Port, len(ports))
-	sem := make(chan struct{}, portWorkers)
+	// A fixed pool of workers, not one goroutine per port: a caller that
+	// hands over a huge list would otherwise allocate them all at once.
+	work := make(chan int)
 	var wg sync.WaitGroup
-	for i, p := range ports {
-		wg.Add(1)
-		go func(i, p int) {
-			defer wg.Done()
-			select {
-			case sem <- struct{}{}:
-			case <-ctx.Done():
-				return
+	for range min(portWorkers, len(ports)) {
+		wg.Go(func() {
+			for i := range work {
+				p := ports[i]
+				c, err := dialFrom(ctx, src, ip, p, portTimeout)
+				if err == nil {
+					c.Close()
+				}
+				results[i] = model.Port{Number: p, Service: serviceNames[p], Open: err == nil}
 			}
-			defer func() { <-sem }()
-			c, err := dialFrom(ctx, src, ip, p, portTimeout)
-			if err == nil {
-				c.Close()
-			}
-			results[i] = model.Port{Number: p, Service: serviceNames[p], Open: err == nil}
-		}(i, p)
+		})
 	}
+	for i := range ports {
+		select {
+		case work <- i:
+		case <-ctx.Done():
+			close(work)
+			wg.Wait()
+			return nil, ctx.Err()
+		}
+	}
+	close(work)
 	wg.Wait()
 	if err := ctx.Err(); err != nil {
 		return nil, err
