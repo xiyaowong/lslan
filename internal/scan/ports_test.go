@@ -29,7 +29,7 @@ func TestDialFromBindsSource(t *testing.T) {
 	}()
 
 	src := netip.MustParseAddr("127.0.0.1")
-	c, err := dialFrom(context.Background(), src, src, port, time.Second)
+	c, err := dialFrom(t.Context(), src, src, port, time.Second)
 	if err != nil {
 		t.Fatalf("dial from loopback: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestDialFromBindsSource(t *testing.T) {
 
 	// An address that is not a local one fails the dial rather than
 	// falling back to the default source.
-	if _, err := dialFrom(context.Background(), netip.MustParseAddr("192.0.2.1"), src, port, time.Second); err == nil {
+	if _, err := dialFrom(t.Context(), netip.MustParseAddr("192.0.2.1"), src, port, time.Second); err == nil {
 		t.Error("a dial from a foreign address succeeded")
 	}
 }

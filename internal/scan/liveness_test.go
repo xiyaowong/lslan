@@ -20,7 +20,7 @@ func TestRefusedIsAlive(t *testing.T) {
 	l.Close() // nothing listens now: the host refuses
 
 	src := netip.MustParseAddr("127.0.0.1")
-	c, err := dialFrom(context.Background(), src, src, port, time.Second)
+	c, err := dialFrom(t.Context(), src, src, port, time.Second)
 	if c != nil {
 		c.Close()
 		t.Fatal("nothing should be listening")

@@ -4,6 +4,7 @@ package scan
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/netip"
 	"os"
@@ -191,7 +192,7 @@ func (m *mdnsRunner) readLoop(conn *net.UDPConn, passive bool) {
 		conn.SetReadDeadline(time.Now().Add(readTick))
 		n, raddr, err := conn.ReadFromUDP(buf)
 		if err != nil {
-			if ne, ok := err.(net.Error); ok && ne.Timeout() {
+			if ne, ok := errors.AsType[net.Error](err); ok && ne.Timeout() {
 				continue
 			}
 			return

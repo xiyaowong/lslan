@@ -33,23 +33,16 @@ type icmpEchoReply struct {
 	Options       ipOptionInformation
 }
 
-var (
-	icmpOnce sync.Once
-	icmpOK   bool
-)
-
 // icmpAvailable reports whether the iphlpapi ICMP device can be opened.
 // It needs no privileges; a failure means the TCP fallback is used.
-func icmpAvailable() bool {
-	icmpOnce.Do(func() {
-		h, _, _ := procIcmpCreateFile.Call()
-		if h != 0 && h != ^uintptr(0) {
-			icmpOK = true
-			procIcmpCloseHandle.Call(h)
-		}
-	})
-	return icmpOK
-}
+var icmpAvailable = sync.OnceValue(func() bool {
+	h, _, _ := procIcmpCreateFile.Call()
+	if h == 0 || h == ^uintptr(0) {
+		return false
+	}
+	procIcmpCloseHandle.Call(h)
+	return true
+})
 
 // icmpPing sends one echo request and reports the measured round-trip
 // time and the reply's TTL. ok is false on timeout or any error status.
