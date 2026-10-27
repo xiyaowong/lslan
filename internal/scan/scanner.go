@@ -36,9 +36,21 @@ const (
 // otherwise a TCP connect fallback made from src, the adapter's address
 // (see tcpAliveFrom).
 func probeHost(src, ip netip.Addr) bool {
+	return probeHostFallback(src, ip, false)
+}
+
+// probeHostFallback is probeHost with the choice of whether a silent ICMP
+// counts as no. The sweep trusts ICMP alone: a device that blocks it is
+// still found by its ARP entry or by service discovery. A wake wait has
+// neither to fall back on, so it asks TCP as well, or a device that
+// answers TCP but not ICMP would read online in the table and never
+// arrive here.
+func probeHostFallback(src, ip netip.Addr, tcpToo bool) bool {
 	if icmpAvailable() {
 		_, _, ok := icmpPing(ip, time.Second)
-		return ok
+		if ok || !tcpToo {
+			return ok
+		}
 	}
 	return tcpAliveFrom(src, ip, arpProbeTimeout)
 }
