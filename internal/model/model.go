@@ -35,19 +35,25 @@ type Port struct {
 }
 
 // Service is one service a host advertises over the network's service
-// discovery (mDNS). Name is the DNS-SD type, e.g. "_http._tcp".
+// discovery (mDNS). Name is the DNS-SD type, e.g. "_http._tcp". Text is
+// its TXT records, which devices use to name themselves: "model=MacBookPro18,3",
+// "md=OfficeJet Pro 9010". Nil when the device announces none.
 type Service struct {
 	Name string
 	Port int
+	Text map[string]string
 }
 
-// Host is one address in the scanned range.
+// Host is one address in the scanned range. Model is what a device says
+// it is in its own words — a TV's model number, a printer's name — so a
+// home user can tell two otherwise identical rows apart.
 type Host struct {
 	IP       netip.Addr
 	State    HostState
 	Hostname string
 	MAC      string
 	Vendor   string
+	Model    string
 	Services []Service
 	Gateway  bool
 	ViaMDNS  bool // found through service discovery, not a probe

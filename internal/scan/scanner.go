@@ -158,7 +158,7 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 	// and a passive ear on the multicast group, both folded back into
 	// the same host map by IP.
 	var mdns *mdnsRunner
-	mdns = startMDNS(ctx, nic, func(ip netip.Addr, hostname string, svcs []model.Service) {
+	mdns = startMDNS(ctx, nic, func(ip netip.Addr, hostname, kind string, svcs []model.Service) {
 		if ctx.Err() != nil {
 			return
 		}
@@ -180,6 +180,10 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 		// answer.
 		if hostname != "" && h.Hostname == "" {
 			h.Hostname = hostname
+			changed = true
+		}
+		if kind != "" && h.Model == "" {
+			h.Model = kind
 			changed = true
 		}
 		for _, sv := range svcs {
@@ -339,6 +343,51 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 		})
 	}
 	probeWG.Wait()
+
+	// UPnP, last: it needs the addresses the sweep found, and it names
+	// TVs, routers and printers that mDNS never hears from. Every failure
+	// there is silent, like mDNS.
+	if ctx.Err() == nil {
+		dataMu.Lock()
+		found := make([]netip.Addr, 0, len(hosts))
+		for k, h := range hosts {
+			if h.Model == "" {
+				found = append(found, addrFromUint32(k))
+			}
+		}
+		dataMu.Unlock()
+		slices.SortFunc(found, func(a, b netip.Addr) int { return a.Compare(b) })
+		ssdpDiscover(ctx, nic, found, func(ip netip.Addr, d ssdpDevice) {
+			if ctx.Err() != nil {
+				return
+			}
+			key := be32(ip)
+			if key < lo || key > hi {
+				return
+			}
+			dataMu.Lock()
+			h, known := hosts[key]
+			if !known {
+				dataMu.Unlock()
+				return
+			}
+			changed := false
+			if d.Model != "" && h.Model == "" {
+				h.Model = d.Model
+				changed = true
+			}
+			// The OUI table knows the maker of a MAC; a device that
+			// announces its own manufacturer knows better.
+			if d.Vendor != "" && h.Vendor == "" {
+				h.Vendor = d.Vendor
+				changed = true
+			}
+			dataMu.Unlock()
+			if changed {
+				s.emit(ctx, Event{Kind: EventHost, Host: snapshotHost(key)})
+			}
+		})
+	}
 
 	// Offline backfill: on a full, uncancelled pass, every probed address
 	// that never answered goes to the UI as an offline host, so the
