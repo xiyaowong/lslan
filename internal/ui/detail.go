@@ -42,6 +42,10 @@ func (a *app) detail(c *ui.Context) {
 			ui.Divider(c).Shrink(0)
 			a.tracePane(c, t)
 		}
+		if a.diagnoseVisible(h.IP) {
+			ui.Divider(c).Shrink(0)
+			a.diagnosePane(c, t)
+		}
 	})
 }
 
@@ -144,12 +148,27 @@ func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
 // beyond the common one wait behind 更多.
 func (a *app) detailActions(c *ui.Context, h model.Host) {
 	ui.Row(c).Gap(space(1)).AlignItems(ui.Center).Wrap().Shrink(0).Children(func() {
+		// 查一查 comes first: for "why can't I reach it" it is the whole
+		// answer, and the three probes below are for when it is not
+		// enough.
+		diagnosing := a.diagnose.running() && a.diagnose.ip == h.IP
+		diagnoseLabel := "查一查"
+		if diagnosing {
+			diagnoseLabel = "停止检查"
+		}
+		if smallPrimary(c, diagnoseLabel).Clicked() {
+			if diagnosing {
+				a.stopDiagnose()
+			} else {
+				a.startDiagnose(h.IP)
+			}
+		}
 		pinging := a.ping.cancel != nil && a.ping.ip == h.IP
 		label := "Ping"
 		if pinging {
 			label = "停止 Ping"
 		}
-		if smallPrimary(c, label).Clicked() {
+		if smallButton(c, label).Clicked() {
 			if pinging {
 				a.stopPing()
 			} else {
