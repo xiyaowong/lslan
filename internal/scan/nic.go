@@ -3,9 +3,10 @@
 package scan
 
 import (
+	"cmp"
 	"fmt"
 	"net/netip"
-	"sort"
+	"slices"
 	"syscall"
 	"unsafe"
 
@@ -72,7 +73,7 @@ func ListNICs() ([]model.NIC, error) {
 	flags := uintptr(gaaIncludePrefix | gaaIncludeGateways)
 	var size uint32
 	buf := []byte{}
-	for attempt := 0; attempt < 5; attempt++ {
+	for range 5 {
 		var bufPtr uintptr
 		if len(buf) > 0 {
 			bufPtr = uintptr(unsafe.Pointer(&buf[0]))
@@ -117,10 +118,7 @@ func parseAdapters(buf []byte) []model.NIC {
 			PrefixLen: plen,
 			Virtual:   isVirtualIfType(aa.IfType),
 		}
-		n := int(aa.PhysicalAddressLength)
-		if n > maxAdapterAddressLength {
-			n = maxAdapterAddressLength
-		}
+		n := min(int(aa.PhysicalAddressLength), maxAdapterAddressLength)
 		nic.MAC = formatMAC(aa.PhysicalAddress[:n])
 		if aa.FirstGatewayAddress != nil {
 			if g, ok := sockaddrIPv4(aa.FirstGatewayAddress.Address); ok {
@@ -130,11 +128,14 @@ func parseAdapters(buf []byte) []model.NIC {
 		nics = append(nics, nic)
 	}
 	// Physical adapters first so the UI's default pick is the real LAN.
-	sort.SliceStable(nics, func(i, j int) bool {
-		if nics[i].Virtual != nics[j].Virtual {
-			return !nics[i].Virtual
+	slices.SortStableFunc(nics, func(a, b model.NIC) int {
+		if a.Virtual != b.Virtual {
+			if a.Virtual {
+				return 1
+			}
+			return -1
 		}
-		return nics[i].Index < nics[j].Index
+		return cmp.Compare(a.Index, b.Index)
 	})
 	return nics
 }

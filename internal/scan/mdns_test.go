@@ -33,7 +33,7 @@ func TestAppendServiceDedupes(t *testing.T) {
 // handle is the whole merge path: response packet in, facts out.
 func TestMDNSHandleMerges(t *testing.T) {
 	m := &dns.Msg{
-		MsgHdr: dns.MsgHdr{Response: true},
+		Response: true,
 		Answer: []dns.RR{
 			&dns.PTR{Hdr: dns.RR_Header{Name: "_http._tcp.local.", Rrtype: dns.TypePTR, Class: dns.ClassINET},
 				Ptr: "MyBox._http._tcp.local."},
@@ -114,7 +114,7 @@ func TestMDNSHandleTXT(t *testing.T) {
 		if len(c.rrs) == 3 {
 			answer, extra = c.rrs[:2], c.rrs[2:]
 		}
-		m := &dns.Msg{MsgHdr: dns.MsgHdr{Response: true}, Answer: answer, Extra: extra}
+		m := &dns.Msg{Response: true, Answer: answer, Extra: extra}
 		pkt, err := m.Pack()
 		if err != nil {
 			t.Fatal(err)
@@ -131,7 +131,7 @@ func TestMDNSHandleTXT(t *testing.T) {
 
 func TestMDNSHandleMetaAddsType(t *testing.T) {
 	m := &dns.Msg{
-		MsgHdr: dns.MsgHdr{Response: true},
+		Response: true,
 		Answer: []dns.RR{
 			&dns.PTR{Hdr: dns.RR_Header{Name: mdnsMetaName, Rrtype: dns.TypePTR, Class: dns.ClassINET},
 				Ptr: "_xbox._tcp.local."},

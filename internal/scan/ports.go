@@ -1,6 +1,7 @@
 package scan
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"net"
@@ -167,7 +168,7 @@ func ScanPortsFrom(ctx context.Context, src, ip netip.Addr, ports []int) ([]mode
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	slices.SortFunc(results, func(a, b model.Port) int { return a.Number - b.Number })
+	slices.SortFunc(results, func(a, b model.Port) int { return cmp.Compare(a.Number, b.Number) })
 	return results, nil
 }
 

@@ -1,10 +1,11 @@
 package ui
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/netip"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -61,12 +62,15 @@ func (a *app) wakeDevices() []model.Host {
 		}
 		out = append(out, h)
 	}
-	sort.SliceStable(out, func(i, j int) bool {
-		oi, oj := out[i].State == model.StateOffline, out[j].State == model.StateOffline
-		if oi != oj {
-			return oi
+	slices.SortStableFunc(out, func(a, b model.Host) int {
+		oa, ob := a.State == model.StateOffline, b.State == model.StateOffline
+		if oa != ob {
+			if oa {
+				return -1
+			}
+			return 1
 		}
-		return out[i].IP.Less(out[j].IP)
+		return a.IP.Compare(b.IP)
 	})
 	return out
 }
@@ -116,10 +120,7 @@ func wakePickLabel(h model.Host) string {
 }
 
 func wakeName(h model.Host) string {
-	if h.Hostname != "" {
-		return h.Hostname
-	}
-	return h.Vendor
+	return cmp.Or(h.Hostname, h.Vendor)
 }
 
 // pickWakeDevice sets the address from a pick and fills its MAC, the

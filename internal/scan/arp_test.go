@@ -18,7 +18,7 @@ func TestARPCacheReadsOncePerWindow(t *testing.T) {
 	c.now = func() time.Time { return now }
 
 	// Many lookups inside one window share a single table read.
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		mac, ok := c.mac(ip)
 		if !ok || mac != "aa:bb:cc:dd:ee:ff" {
 			t.Fatalf("mac(%v) = %q, %v; want aa:bb:cc:dd:ee:ff, true", ip, mac, ok)
@@ -69,7 +69,7 @@ func TestARPCacheFailedReadCachedAsEmpty(t *testing.T) {
 		calls++
 		return nil // API failure
 	}
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		if _, ok := c.mac(netip.MustParseAddr("10.0.0.1")); ok {
 			t.Error("unexpected hit on failed read")
 		}
