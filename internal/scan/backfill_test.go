@@ -6,8 +6,38 @@ import (
 	"lslan/internal/model"
 )
 
-// TestOfflineBackfill: after a sweep, every address it never found
-// responding comes back as an offline host, in order (issue #21).
+// TestOfflineBackfillIgnoresOutOfRangeHosts: mDNS hears the whole subnet,
+// so the host map can hold addresses outside the range asked for. The
+// backfill must survive them: it once sized itself from the count and
+// panicked with a negative capacity.
+func TestOfflineBackfillIgnoresOutOfRangeHosts(t *testing.T) {
+	lo := be32(na("192.168.1.10"))
+	hi := lo
+	known := map[uint32]struct{}{
+		be32(na("192.168.1.20")): {},
+		be32(na("192.168.1.21")): {},
+		be32(na("192.168.1.22")): {},
+	}
+	got := offlineBackfill(lo, hi, known)
+	if len(got) != 1 || got[0].IP.String() != "192.168.1.10" {
+		t.Fatalf("backfill = %v, want the one in-range address", got)
+	}
+	if got[0].State != model.StateOffline {
+		t.Errorf("state = %v, want offline", got[0].State)
+	}
+}
+
+// TestOfflineBackfillFullRange: every address answered, nothing to fill.
+func TestOfflineBackfillFullRange(t *testing.T) {
+	lo, hi := be32(na("192.168.1.1")), be32(na("192.168.1.2"))
+	known := map[uint32]struct{}{lo: {}, hi: {}}
+	if got := offlineBackfill(lo, hi, known); len(got) != 0 {
+		t.Errorf("backfill = %v, want none", got)
+	}
+}
+
+// TestOfflineBackfill: every address the sweep never found responding
+// comes back as an offline host, in order.
 func TestOfflineBackfill(t *testing.T) {
 	known := map[uint32]struct{}{
 		be32(na("192.168.1.2")): {},
@@ -25,17 +55,5 @@ func TestOfflineBackfill(t *testing.T) {
 		if h.State != model.StateOffline {
 			t.Errorf("backfill[%d] state = %v, want offline", i, h.State)
 		}
-	}
-}
-
-// TestOfflineBackfillFullRange: a range where everything answered
-// backfills nothing.
-func TestOfflineBackfillFullRange(t *testing.T) {
-	known := map[uint32]struct{}{}
-	for _, s := range []string{"192.168.1.1", "192.168.1.2"} {
-		known[be32(na(s))] = struct{}{}
-	}
-	if got := offlineBackfill(be32(na("192.168.1.1")), be32(na("192.168.1.2")), known); len(got) != 0 {
-		t.Errorf("backfill = %v, want none", got)
 	}
 }

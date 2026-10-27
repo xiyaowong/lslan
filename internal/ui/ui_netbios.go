@@ -138,73 +138,65 @@ func nbnsIsPrintable(s string) bool {
 	return true
 }
 
-// netbiosState is the one-at-a-time NetBIOS name query, run by itself
-// when a device's details open: the name is its own fact, apart from
-// the hostname the network reported, shown as its value or a dash.
+// netbiosState is the NetBIOS name query, run by itself when a device's
+// details open: the name is its own fact, apart from the hostname the
+// network reported, shown as its value or a dash. Answers are kept per
+// address, so a slow answer for one device can never land on another.
 type netbiosState struct {
 	starter netbiosStarter
-	busy    bool
-	gen     int
 	// asked holds the ips already asked this run, so returning to a
-	// device does not ask it again.
+	// device does not ask it again; a new sweep clears it.
 	asked map[netip.Addr]bool
-	// name is the answer for the ip of the pane, "" while none.
-	name   string
-	failed bool
+	// names holds the answers, by address.
+	names map[netip.Addr]string
 }
 
-// netbiosAskFor asks ip when it has not been asked yet; safe to call
-// on every open of the details.
+// netbiosAskFor asks ip when it has not been asked yet; safe to call on
+// every open of the details.
 func (a *app) netbiosAskFor(ip netip.Addr) {
 	nb := &a.netbios
 	if nb.asked == nil {
 		nb.asked = map[netip.Addr]bool{}
 	}
-	if nb.asked[ip] || nb.busy {
+	if nb.asked[ip] {
 		return
 	}
 	if nb.starter == nil {
 		nb.starter = realNetBIOS
 	}
 	nb.asked[ip] = true
-	nb.busy = true
-	nb.name, nb.failed = "", false
-	nb.gen++
-	gen := nb.gen
 	go func() {
 		// A name answers within the first exchange; a silent device is
 		// given one retry before the ask gives up.
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
 		out, err := nb.starter(ctx, ip)
+		if err != nil || out == "" {
+			return
+		}
 		a.dispatch(func() {
-			nb.busy = false
-			if nb.gen != gen {
-				return
+			if nb.names == nil {
+				nb.names = map[netip.Addr]string{}
 			}
-			switch {
-			case err != nil:
-				nb.failed = true
-			case out == "":
-				nb.failed = true
-			default:
-				nb.name = out
-			}
+			nb.names[ip] = out
 		})
 	}()
+}
+
+// netbiosReset forgets every answer and ask, so the next sweep asks again:
+// a device may have been renamed or restarted meanwhile.
+func (a *app) netbiosReset() {
+	a.netbios.asked = nil
+	a.netbios.names = nil
 }
 
 // netbiosFact is the NetBIOS 名 line of the facts: what the device
 // itself reported over NetBIOS, which may differ from the hostname the
 // network gave it. Asked when the details open; a dash while nothing
 // came back — no words about asking or failing.
-func (a *app) netbiosFact(c *ui.Context, t *ui.Theme) {
+func (a *app) netbiosFact(c *ui.Context, t *ui.Theme, ip netip.Addr) {
 	ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
 		ui.Text(c, "NetBIOS 名").FontSize(12).Width(64).TextColor(t.TextMuted).Shrink(0)
-		var value string
-		if a.netbios.name != "" {
-			value = a.netbios.name
-		}
-		ui.Text(c, orDash(value)).FontSize(13).SingleLine()
+		ui.Text(c, orDash(a.netbios.names[ip])).FontSize(13).SingleLine()
 	})
 }
