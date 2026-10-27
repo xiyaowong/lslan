@@ -22,7 +22,7 @@ func TestPingPaneClose(t *testing.T) {
 	a.startPingFn = func(ctx context.Context, ip netip.Addr) (pingSessionIface, error) {
 		return sess, nil
 	}
-	a.pingIP = host
+	a.ping.ip = host
 	a.pingLines = []string{"来自 192.168.1.9: 字节=32 时间=1.0ms TTL=64"}
 	a.pingStats = pingStats{sent: 1, recv: 1}
 	a.selRow, a.selIP = 0, host

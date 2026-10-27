@@ -128,34 +128,28 @@ type app struct {
 	// rather than the table.
 	cardWidth float32
 
-	// Ping state; pingGen drops samples of a stopped session. pingTerm is
-	// the terminal plugin view of the session, nil when it could not be
-	// created (the plain line list stands in).
-	pingGen    int
-	pingCancel context.CancelFunc
-	pingIP     netip.Addr
-	pingLines  []string
-	pingStats  pingStats
-	pingList   ui.ListState
-	pingTerm   pingTerminalIface
+	// Ping state; the run's generation drops samples of a stopped session.
+	// pingTerm is the terminal plugin view of the session, nil when it
+	// could not be created (the plain line list stands in).
+	ping      toolRun
+	pingLines []string
+	pingStats pingStats
+	pingList  ui.ListState
+	pingTerm  pingTerminalIface
 
 	// Telnet test state (#54): one interactive session at a time, shared
 	// with ping — starting either ends the other, and the pane at the
-	// panel's foot shows the one running for this host. telnetGen drops
-	// a dial the user has since ended.
-	telnetGen     int
+	// panel's foot shows the one running for this host. The run's
+	// generation drops a dial the user has since ended.
+	telnet        toolRun
 	telnetPending bool
-	telnetIP      netip.Addr
 	telnetPort    int
 	telnetTerm    telnetTermIface
 	telnetErr     string
 
 	// Route trace state: one run at a time, its process killed on stop.
-	// traceGen drops output of a run the user has since restarted; the
-	// pane shows the hops as they land and the ✕ once the run ends.
-	traceGen     int
-	traceCancel  context.CancelFunc
-	traceIP      netip.Addr
+	// The pane shows the hops as they land and the ✕ once the run ends.
+	trace        toolRun
 	traceLines   []string
 	traceList    ui.ListState
 	traceStarter traceStarter
