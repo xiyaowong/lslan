@@ -33,6 +33,11 @@ func (a *app) setRange(start, end netip.Addr) {
 	a.lastCell = -1
 }
 
+// unlockRange frees the network octets so another subnet can be typed.
+// The lock exists so a typo cannot quietly point a sweep at the wrong
+// network; a household with a second subnet needs it off.
+func (a *app) unlockRange() { a.cellLock = false }
+
 // cellLocked tells whether cell i shows a locked network octet: in a
 // locked control, every cell but the host cell of each address.
 func (a *app) cellLocked(i int) bool {
