@@ -95,6 +95,11 @@ const detailMinWidth = 380
 // the status bar all line up on it.
 const gutter = 16
 
+// rangeLimit is the largest sweep offered: every address the sweep did not
+// find is reported as offline, so a /8 would allocate gigabytes and feed
+// the table sixteen million rows.
+const rangeLimit = 65536
+
 // cardWidth is the host card's width this frame: its own beside the
 // detail panel, the window less its margins otherwise.
 func cardWidth(c *ui.Context, a *app) float32 {
@@ -150,12 +155,17 @@ func (a *app) commandBar(c *ui.Context, t *ui.Theme) {
 			ui.Box(c).Grow(1)
 			ui.Checkbox(c, &a.withPorts, "顺带扫描端口").FontSize(12).
 				Tooltip("扫描时一并查看在线地址开放的端口")
-			if a.scanning {
+			switch {
+			case a.scanStopping:
+				ui.Button(c, "正在停止…").Disabled(true)
+			case a.scanning:
 				if ui.Button(c, "取消扫描").Clicked() {
-					a.scanner.Cancel()
+					a.cancelScan()
 				}
-			} else if ui.PrimaryButton(c, "开始扫描").Clicked() {
-				a.startScan()
+			default:
+				if btn := ui.PrimaryButton(c, "开始扫描").Disabled(!a.rangeFits()); btn.Clicked() {
+					a.startScan()
+				}
 			}
 		})
 		a.rangeBar(c, t)
@@ -175,11 +185,17 @@ func (a *app) rangeBar(c *ui.Context, t *ui.Theme) {
 		if ui.Button(c, "整个网段").Clicked() {
 			a.fillRange()
 		}
-		if n, ok := a.rangeTotal(); ok && n > 256 {
-			if ui.Button(c, "收窄到 C 段").Clicked() {
-				a.narrowRange()
+		if n, ok := a.rangeTotal(); ok {
+			switch {
+			case n > rangeLimit:
+				ui.Textf(c, "一次最多扫 %d 个地址，请先收窄范围", rangeLimit).
+					FontSize(12).TextColor(t.Danger).SingleLine()
+			case n > 256:
+				if ui.Button(c, "收窄到本网段").Clicked() {
+					a.narrowRange()
+				}
+				ui.Textf(c, "共 %d 个地址，扫描会比较慢", n).FontSize(12).TextColor(t.TextMuted).SingleLine()
 			}
-			ui.Textf(c, "共 %d 个地址，扫描会比较慢", n).FontSize(12).TextColor(t.TextMuted).SingleLine()
 		}
 	})
 }
@@ -274,7 +290,11 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 		a.stat(c, t, "已发现", a.discoveredCount(), false)
 		a.stat(c, t, "总数", a.progress.Total, false)
 		ui.Box(c).Grow(1)
-		if a.scanning {
+		switch {
+		case a.scanStopping:
+			ui.Spinner(c)
+			ui.Text(c, "正在停止…").FontSize(12).TextColor(t.TextMuted)
+		case a.scanning:
 			pct := 0.0
 			if a.progress.Total > 0 {
 				pct = float64(a.progress.Scanned) / float64(a.progress.Total)
@@ -282,7 +302,7 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 			ui.Progress(c, pct).Width(140).Height(3).Shrink(0)
 			ui.Textf(c, "已扫描 %d/%d", a.progress.Scanned, a.progress.Total).
 				FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted)
-		} else if a.sweepLeft > 0 {
+		case a.sweepLeft > 0:
 			ui.Spinner(c)
 			ui.Textf(c, "正在查看 %d 个地址的端口", a.sweepLeft).
 				FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted)
@@ -296,11 +316,15 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 		a.wakeButton(c)
 		a.aboutButton(c, t)
 	})
-	// The wait's outcome is said once, as a toast, so the bar keeps its
-	// width however long the words are.
+	// Brief outcomes are said once, as a toast, so the bar keeps its width
+	// however long the words are.
 	if a.wakeNote != "" {
 		c.Toast(a.wakeNote)
 		a.wakeNote = ""
+	}
+	if a.scanNote != "" {
+		c.Toast(a.scanNote)
+		a.scanNote = ""
 	}
 	a.wakeDialog(c, t)
 }

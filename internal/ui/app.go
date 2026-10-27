@@ -82,9 +82,16 @@ type app struct {
 	scanner  scannerIface
 	pumpOnce sync.Once
 	scanning bool
-	scanErr  string
-	progress model.Progress
-	hosts    map[netip.Addr]model.Host
+	// scanStopping is set the moment the user cancels, so the button can
+	// say so while the engine unwinds; scanCancelled remembers it was a
+	// cancel, so the end of the sweep neither reports a result nor starts
+	// the port probes.
+	scanStopping  bool
+	scanCancelled bool
+	scanErr       string
+	scanNote      string
+	progress      model.Progress
+	hosts         map[netip.Addr]model.Host
 	// withPorts makes a sweep probe the ports of every host it finds;
 	// portGen drops the results of a sweep the user has since restarted,
 	// and sweepLeft counts the hosts still to probe in this one.
@@ -472,6 +479,11 @@ func (a *app) startScan() {
 		a.scanErr = "IP 范围无效，请填写完开始和结束 IP"
 		return
 	}
+	n, _ := rangeCount(start, end)
+	if n > rangeLimit {
+		a.scanErr = "范围太大了，请先收窄"
+		return
+	}
 	if a.scanner == nil {
 		a.scanner = a.newScanner()
 	}
@@ -480,8 +492,9 @@ func (a *app) startScan() {
 		a.scanErr = "无法开始扫描，请检查网卡后重试"
 		return
 	}
-	n, _ := rangeCount(start, end)
 	a.scanning = true
+	a.scanStopping = false
+	a.scanCancelled = false
 	a.scanErr = ""
 	a.progress = model.Progress{Total: int(n)}
 	a.hosts = map[netip.Addr]model.Host{}
@@ -491,6 +504,23 @@ func (a *app) startScan() {
 	a.sweepPending = nil
 	a.netbiosReset() // a device may have been renamed since
 	a.selRow, a.selIP = -1, netip.Addr{}
+}
+
+// rangeFits reports whether the range is one the app is willing to scan.
+func (a *app) rangeFits() bool {
+	n, ok := a.rangeTotal()
+	return ok && n <= rangeLimit
+}
+
+// cancelScan asks the engine to stop and says so at once, since the sweep
+// can take a while to unwind and a dead button reads as a broken one.
+func (a *app) cancelScan() {
+	if !a.scanning || a.scanStopping {
+		return
+	}
+	a.scanStopping = true
+	a.scanCancelled = true
+	a.scanner.Cancel()
 }
 
 // startPump drains the scanner's event stream once, for its lifetime: the
@@ -516,9 +546,12 @@ func (a *app) applyEvent(ev scan.Event) {
 			a.hosts[ev.Host.IP] = *ev.Host
 		}
 	case scan.EventDone:
-		a.scanning = false
+		a.scanning, a.scanStopping = false, false
 		a.progress = ev.Progress
-		if a.withPorts {
+		if a.scanCancelled {
+			a.scanCancelled = false
+			a.scanNote = "已取消扫描"
+		} else if a.withPorts {
 			a.sweepPorts()
 		}
 	case scan.EventError:
