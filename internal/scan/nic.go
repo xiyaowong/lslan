@@ -111,6 +111,7 @@ func parseAdapters(buf []byte) []model.NIC {
 			continue
 		}
 		nic := model.NIC{
+			Index:     ifIndex(aa),
 			Name:      utf16Str(aa.FriendlyName),
 			IP:        ip,
 			PrefixLen: plen,
@@ -136,6 +137,15 @@ func parseAdapters(buf []byte) []model.NIC {
 		return nics[i].Index < nics[j].Index
 	})
 	return nics
+}
+
+// ifIndex reads the adapter's IPv4 interface index out of the union that
+// opens IP_ADAPTER_ADDRESSES: on this ABI it holds Length then IfIndex,
+// both as 4-byte fields.
+func ifIndex(aa *ipAdapterAddresses) int {
+	var idx uint32
+	copy((*[4]byte)(unsafe.Pointer(&idx))[:], aa.Union[4:8])
+	return int(idx)
 }
 
 // isVirtualIfType reports whether an IANA interface type is a virtual

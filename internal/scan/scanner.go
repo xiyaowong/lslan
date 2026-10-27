@@ -267,8 +267,15 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 	// (catches devices that block ICMP; cache entries may be a few
 	// minutes stale, so a device gone dark just before a resweep can
 	// leak through as online). Known hosts missing a MAC are backfilled
-	// from a fresh table read.
-	for addr, mac := range readARPTable() {
+	// from a fresh table read. The probes run in parallel: a machine's
+	// ARP table can hold dozens of stale entries, and one at a time would
+	// hold the sweep's end for tens of seconds.
+	table := readARPTable()
+	var unknown []struct {
+		key uint32
+		mac string
+	}
+	for addr, mac := range table {
 		if !addr.Is4() {
 			continue
 		}
@@ -287,19 +294,33 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 			continue
 		}
 		dataMu.Unlock()
+		unknown = append(unknown, struct {
+			key uint32
+			mac string
+		}{key, mac})
+	}
+	var probeWG sync.WaitGroup
+	sem := make(chan struct{}, 16)
+	for _, u := range unknown {
 		if ctx.Err() != nil {
 			break
 		}
-		if tcpAliveFrom(nic.IP, addr, arpProbeTimeout) {
-			h := &model.Host{IP: addrFromUint32(key), State: model.StateOnline, LastSeen: time.Now()}
-			if gatewayValid && key == gateway {
+		sem <- struct{}{}
+		probeWG.Go(func() {
+			defer func() { <-sem }()
+			if !tcpAliveFrom(nic.IP, addrFromUint32(u.key), arpProbeTimeout) {
+				return
+			}
+			h := &model.Host{IP: addrFromUint32(u.key), State: model.StateOnline, LastSeen: time.Now()}
+			if gatewayValid && u.key == gateway {
 				h.Gateway = true
 			}
-			h.MAC = mac
-			h.Vendor = OUIVendor(mac)
-			enrichHost(key, h)
-		}
+			h.MAC = u.mac
+			h.Vendor = OUIVendor(u.mac)
+			enrichHost(u.key, h)
+		})
 	}
+	probeWG.Wait()
 
 	// Offline backfill: on a full, uncancelled pass, every probed address
 	// that never answered goes to the UI as an offline host, so the
