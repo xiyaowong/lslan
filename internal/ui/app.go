@@ -93,8 +93,8 @@ type app struct {
 	// lastSeen holds the MACs of the previous sweep, for the note that
 	// says who came and who went.
 	lastSeen map[string]bool
-	progress      model.Progress
-	hosts         map[netip.Addr]model.Host
+	progress model.Progress
+	hosts    map[netip.Addr]model.Host
 	// withPorts makes a sweep probe the ports of every host it finds;
 	// portGen drops the results of a sweep the user has since restarted,
 	// and sweepLeft counts the hosts still to probe in this one.
