@@ -52,11 +52,20 @@ func (p *pingTerminal) feed(line string, ok bool) {
 }
 
 func (p *pingTerminal) setDark(dark bool) {
+	p.term.UseTheme(terminalTheme(dark))
+}
+
+// terminalTheme is the terminal's colors, taken from the app's own theme
+// rather than mygo's defaults: the two grounds differ, and a terminal
+// fighting its panel reads as a foreign window.
+func terminalTheme(dark bool) *terminal.Theme {
+	app := appTheme(dark)
+	t := terminal.LightTheme()
 	if dark {
-		p.term.UseTheme(terminal.DarkTheme())
-	} else {
-		p.term.UseTheme(terminal.LightTheme())
+		t = terminal.DarkTheme()
 	}
+	t.Foreground, t.Background = app.Text, app.Surface
+	return t
 }
 
 func (p *pingTerminal) view(c *ui.Context) ui.Element {

@@ -18,19 +18,24 @@ func smallPrimary(c *ui.Context, label string) ui.Element {
 // flatButton is a text button that shows no face until the pointer is over
 // it, for a lesser action beside the others.
 func flatButton(c *ui.Context, label string) ui.Element {
-	b := ui.Button(c, label).Padding(3, 6)
+	b := ui.Button(c, label).Padding(6, 8)
 	return flatFace(c, b)
 }
 
 // iconButton is a small square button showing only an icon. label names
 // it for assistive technology and tests (unique in the window), tooltip
-// is the hover word — a bare verb, the position saying the rest.
+// is the hover word — a bare verb, the position saying the rest. The
+// click target stays at least 24px even when the glyph is smaller.
 func iconButton(c *ui.Context, label, tooltip string, size float32, draw func(p *ui.Painter, r ui.Rect, ink ui.Color)) ui.Element {
-	b := ui.ButtonBase(c).Size(size, size).Radius(4).Shrink(0).Label(label).Tooltip(tooltip)
+	b := ui.ButtonBase(c).Size(max(size, minClickTarget), max(size, minClickTarget)).
+		Radius(4).Shrink(0).Label(label).Tooltip(tooltip)
 	ink := iconInk(c.Theme())
 	b.Draw(func(p *ui.Painter, r ui.Rect) { draw(p, r, ink) })
 	return flatFace(c, b)
 }
+
+// minClickTarget is the smallest a control's hit area should be.
+const minClickTarget = 24
 
 // flatFace paints a button only under the pointer, the Fluent text and
 // icon buttons.

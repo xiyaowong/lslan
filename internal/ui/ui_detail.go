@@ -62,8 +62,11 @@ func (a *app) telnetVisible(ip netip.Addr) bool {
 func (a *app) detailHeader(c *ui.Context, t *ui.Theme, h model.Host) {
 	ui.Column(c).Gap(8).Shrink(0).Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Size(10, 10).Radius(5).Background(stateDot(t, h)).Shrink(0)
+			ui.Box(c).Size(10, 10).Radius(5).Background(stateDot(t, h)).Shrink(0).
+				Label(stateLabel(h.State))
 			ui.Text(c, h.IP.String()).FontSize(20).FontWeight(600).FontFeatures("tnum")
+			// The dot alone leaves the state to colour; the word says it.
+			ui.Text(c, stateLabel(h.State)).FontSize(12).TextColor(t.TextMuted)
 			ui.Box(c).Grow(1)
 			if iconButton(c, "关闭详情", "关闭", 18, drawClose).Clicked() {
 				a.selRow, a.selIP = -1, netip.Addr{}

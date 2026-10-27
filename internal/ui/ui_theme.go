@@ -55,8 +55,12 @@ func appTheme(dark bool) *ui.Theme {
 	t.FontSize = 13
 	// Toasts ride the theme's inverse pair; Fluent's toast layer is the
 	// same dark acrylic in both appearances, so a dark one never sits as
-	// a white flash on the charcoal ground.
+	// a white flash on the charcoal ground. In dark the card is already
+	// that charcoal, so the toast lifts a step above it instead.
 	t.Inverse = ui.Hex("#2b2b2b")
+	if t.Dark {
+		t.Inverse = ui.Hex("#45484d")
+	}
 	t.InverseText = ui.Hex("#ffffff")
 	return t
 }

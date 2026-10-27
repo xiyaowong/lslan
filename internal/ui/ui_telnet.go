@@ -38,13 +38,7 @@ func buildTelnetTerm(conn net.Conn) (telnetTermIface, error) {
 
 func (p *telnetTerm) view(c *ui.Context) ui.Element { return terminal.View(c, p.term) }
 func (p *telnetTerm) close()                        { p.term.Close() }
-func (p *telnetTerm) setDark(dark bool) {
-	if dark {
-		p.term.UseTheme(terminal.DarkTheme())
-	} else {
-		p.term.UseTheme(terminal.LightTheme())
-	}
-}
+func (p *telnetTerm) setDark(dark bool)             { p.term.UseTheme(terminalTheme(dark)) }
 
 // telnetLink is the device's end of the session in the terminal's hands:
 // the keys pass through as typed, while the output is cleaned of the
