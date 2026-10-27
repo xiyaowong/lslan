@@ -583,7 +583,7 @@ func (a *app) treeCell(c *ui.Context, col string, k treeKey) {
 		if !port {
 			ui.Row(c).Gap(space(1)).AlignItems(ui.Center).Children(func() {
 				if kind := deviceKindOf(h, a.ports[k.IP]); kind != kindUnknown {
-					ui.Text(c, kind.Label()).FontSize(12).TextColor(t.Accent).Shrink(0)
+					ui.Text(c, kind.Label()).FontSize(12).TextColor(kindInk(t)).Shrink(0)
 				}
 				ui.Text(c, orDash(h.Hostname)).SingleLine().TextColor(text).Tooltip(h.Hostname)
 			})

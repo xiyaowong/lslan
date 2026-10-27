@@ -82,7 +82,7 @@ func (a *app) detailHeader(c *ui.Context, t *ui.Theme, h model.Host) {
 				Label(stateLabel(h.State))
 			ui.Text(c, h.IP.String()).FontSize(20).FontWeight(600).FontFeatures("tnum")
 			if kind := deviceKindOf(h, a.ports[h.IP]); kind != kindUnknown {
-				ui.Text(c, kind.Label()).FontSize(12).TextColor(t.Accent)
+				ui.Text(c, kind.Label()).FontSize(12).TextColor(kindInk(t))
 			}
 			// The dot alone leaves the state to colour; the word says it.
 			ui.Text(c, stateLabel(h.State)).FontSize(12).TextColor(t.TextMuted)

@@ -50,6 +50,13 @@ func TestThemeContrast(t *testing.T) {
 		{"dark hover on card", darkHover, darkCard, 1.2},
 		{"dark muted on chosen row", [3]uint8{0xb9, 0xc2, 0xcc}, [3]uint8{0x2f, 0x4f, 0x63}, 4.5},
 		{"light muted on chosen row", [3]uint8{0x4d, 0x55, 0x61}, [3]uint8{0xcf, 0xe2, 0xfa}, 4.5},
+		// The device-type label used to be drawn in t.Accent, which the
+		// table rewrites to the chosen row's fill: on that row it came out
+		// in the row's own colour and only its antialiasing showed.
+		{"light kind label on chosen row", [3]uint8{0x0f, 0x54, 0x8c}, [3]uint8{0xcf, 0xe2, 0xfa}, 4.5},
+		{"dark kind label on chosen row", [3]uint8{0x99, 0xe0, 0xff}, [3]uint8{0x2f, 0x4f, 0x63}, 4.5},
+		{"light kind label on card", [3]uint8{0x0f, 0x54, 0x8c}, lightCard, 4.5},
+		{"dark kind label on card", [3]uint8{0x99, 0xe0, 0xff}, darkCard, 4.5},
 	}
 	for _, c := range cases {
 		got := contrast(c.a, c.b)

@@ -121,6 +121,17 @@ func iconInk(t *ui.Theme) ui.Color {
 	return ui.Hex("#5c5c5c")
 }
 
+// kindInk is the device-type label, in the accent's colour family but its
+// own token: the table rewrites Accent to the chosen row's tint, so a
+// label drawn in Accent comes out in the row's own colour and vanishes.
+// This one holds its contrast on the card, the hover and the chosen row.
+func kindInk(t *ui.Theme) ui.Color {
+	if t.Dark {
+		return ui.Hex("#99e0ff")
+	}
+	return ui.Hex("#0f548c")
+}
+
 // gatewayPill is the 网关 badge, in the accent as a fill.
 func gatewayPill(t *ui.Theme) (bg, fg ui.Color) {
 	if t.Dark {
