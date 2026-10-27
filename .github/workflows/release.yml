@@ -19,10 +19,10 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # release-check compares the tag with main
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
       # 坏代码不该发到全体用户手上:版本号一致、tag 在 main 上、检查通过,再构建。
