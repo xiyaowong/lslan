@@ -15,6 +15,13 @@ import (
 
 var errInvalidAddress = errors.New("scan: invalid IPv4 address")
 
+// ErrBusy and ErrRangeReversed tell the caller why a sweep was refused, so
+// the interface can say something the user can act on.
+var (
+	ErrBusy          = errors.New("scan: a sweep is already running")
+	ErrRangeReversed = errors.New("scan: start address is after end address")
+)
+
 // Preset is a named port list for scenario-based scanning.
 type Preset struct {
 	Name  string // e.g. "摄像头", "路由器", "NAS"

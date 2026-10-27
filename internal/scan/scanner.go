@@ -4,7 +4,6 @@ package scan
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -24,6 +23,9 @@ const (
 	arpProbeTimeout = 300 * time.Millisecond
 	arpCacheWindow  = 500 * time.Millisecond
 	eventBuf        = 1024
+	// finalEventWait bounds the last event's delivery: a caller that has
+	// stopped draining must not wedge the sweep goroutines.
+	finalEventWait = 2 * time.Second
 )
 
 // probeHost decides liveness: ICMP echo when the ICMP device opens,
@@ -66,21 +68,22 @@ func NewScanner() *Scanner { return &Scanner{events: make(chan Event, eventBuf)}
 func (s *Scanner) Events() <-chan Event { return s.events }
 
 // Start sweeps [start,end] via the given NIC, emitting EventHost as
-// hosts are resolved and EventProgress as the sweep advances.
+// hosts are resolved and EventProgress as the sweep advances. Its errors
+// are sentinels the interface can tell apart and explain.
 func (s *Scanner) Start(nic model.NIC, start, end netip.Addr) error {
 	if !start.IsValid() || !end.IsValid() || !start.Is4() || !end.Is4() {
 		return errInvalidAddress
 	}
 	lo, hi := be32(start), be32(end)
 	if lo > hi {
-		return errors.New("scan: start address is after end address")
+		return ErrRangeReversed
 	}
 	total := int64(hi-lo) + 1
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.running {
-		return errors.New("scan: a sweep is already running")
+		return ErrBusy
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s.running = true
@@ -163,7 +166,10 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 			hosts[key] = h
 		}
 		changed := !known
-		if hostname != "" && hostname != h.Hostname {
+		// The first name wins, as it does for the reverse lookup: two
+		// responders on one address would otherwise flip it on every
+		// answer.
+		if hostname != "" && h.Hostname == "" {
 			h.Hostname = hostname
 			changed = true
 		}
@@ -395,8 +401,13 @@ func (s *Scanner) emit(ctx context.Context, ev Event) {
 	}
 }
 
-// emitFinal delivers terminal events (Done/Error) even after
-// cancellation so the caller always sees the sweep end.
+// emitFinal delivers terminal events (Done/Error) even after cancellation
+// so the caller always sees the sweep end. It waits a bounded time and
+// then gives up: a caller that stopped draining must not be able to wedge
+// the sweep goroutines forever.
 func (s *Scanner) emitFinal(_ context.Context, ev Event) {
-	s.events <- ev
+	select {
+	case s.events <- ev:
+	case <-time.After(finalEventWait):
+	}
 }

@@ -294,12 +294,13 @@ func mdnsType(name string) string {
 	return strings.TrimSuffix(t, ".local")
 }
 
-// appendService adds s to list unless a same-named one is already
-// there, in which case it only fills in a missing port.
+// appendService adds s to list unless a same-named one is already there.
+// A port the device has since changed (8080 to 80, say) replaces the old
+// one; a known port is never blanked by an answer without one.
 func appendService(list []model.Service, s model.Service) []model.Service {
 	for i := range list {
 		if list[i].Name == s.Name {
-			if list[i].Port == 0 && s.Port > 0 {
+			if s.Port > 0 {
 				list[i].Port = s.Port
 			}
 			return list
