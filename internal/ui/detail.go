@@ -205,7 +205,9 @@ func (a *app) detailActions(c *ui.Context, h model.Host) {
 			c.OpenURL("http://" + h.IP.String())
 			c.Toast("已在浏览器打开 http://" + h.IP.String())
 		}
-		more := flatButton(c, "更多")
+		// 更多 opens a popover, but it sits in the same row as the other
+		// actions: same size, same quiet face.
+		more := smallFlatButton(c, "更多")
 		if more.Clicked() {
 			a.moreOpen = !a.moreOpen
 		}

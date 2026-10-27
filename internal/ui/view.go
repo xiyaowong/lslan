@@ -347,7 +347,8 @@ const statusBarHeight = 32
 // push it out of the window: tallies, the scan progress, errors, and the
 // offline filter.
 func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
-	ui.Row(c).Height(statusBarHeight).Padding(0, gutter).Gap(18).AlignItems(ui.Center).Shrink(0).Children(func() {
+	ui.Row(c).Height(statusBarHeight).Padding(space(1), gutter, space(1), gutter).
+		Gap(18).AlignItems(ui.Center).Shrink(0).Children(func() {
 		// The green dot is about who is here now; it should not stay lit
 		// when nobody is.
 		a.stat(c, t, "在线", a.onlineCount(), a.onlineCount() > 0)
