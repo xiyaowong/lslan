@@ -160,6 +160,11 @@ type app struct {
 	// hostname is missing; the answer fills the facts, never overwrites.
 	netbios netbiosState
 
+	// diagnose is the 查一查 tool: ping, then ports, then a sentence.
+	diagnose diagnoseState
+	// diagnosePingFn is one echo; a fake in tests.
+	diagnosePingFn func(ctx context.Context, ip netip.Addr) bool
+
 	// wake is the 远程唤醒 tool: a dialog off the status bar, then the
 	// wait for the woken device to answer.
 	wake     wakeState
@@ -222,6 +227,19 @@ func newApp() *app {
 		wakeProbe: scan.Probe,
 		wakeEvery: wakeWaitEvery,
 		wakeFor:   wakeWaitFor,
+		diagnosePingFn: func(ctx context.Context, ip netip.Addr) bool {
+			sess, err := scan.StartPing(ctx, ip)
+			if err != nil {
+				return false
+			}
+			defer sess.Cancel()
+			select {
+			case s, ok := <-sess.Samples():
+				return ok && s.OK
+			case <-ctx.Done():
+				return false
+			}
+		},
 		hosts:     map[netip.Addr]model.Host{},
 		ports:     map[netip.Addr][]model.Port{},
 		selRow:    -1,
