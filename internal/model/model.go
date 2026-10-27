@@ -48,21 +48,10 @@ type Host struct {
 	Hostname string
 	MAC      string
 	Vendor   string
-	Ports    []Port
 	Services []Service
 	Gateway  bool
 	ViaMDNS  bool // found through service discovery, not a probe
 	LastSeen time.Time
-}
-
-// LastOctet returns the last octet of the IPv4 address, for the
-// "主机号" table column.
-func (h Host) LastOctet() int {
-	if !h.IP.Is4() {
-		return 0
-	}
-	b := h.IP.As4()
-	return int(b[3])
 }
 
 // Progress is the running tally of a sweep.

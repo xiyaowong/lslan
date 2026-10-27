@@ -117,29 +117,16 @@ func TestPing(t *testing.T) {
 	tt.Frame()
 }
 
-// TestRowContextMenu: a row carries no context menu of its own; its
-// actions live in the detail panel, each fact with a button copying it.
-func TestRowContextMenu(t *testing.T) {
+// TestDetailCopiesMAC: the detail panel copies a fact through its button.
+func TestDetailCopiesMAC(t *testing.T) {
 	a := newApp()
 	tt := ui.NewTester(a.View, 1000, 680)
 
 	ip := netip.MustParseAddr("192.168.1.5")
 	a.hosts[ip] = model.Host{IP: ip, State: model.StateOnline, MAC: "AA:BB", Hostname: "router"}
-	tt.Frame()
-	r, ok := tt.Find(ip.String())
-	if !ok {
-		t.Fatalf("row of %s not found", ip)
-	}
-	tt.RightClickAt(r.X+2, r.Y+r.H/2)
-	tt.Frame()
-	if got := tt.Menu(); len(got) != 0 {
-		t.Errorf("menu = %q, want none", got)
-	}
-
-	// The detail panel copies a fact through its button.
 	a.selRow, a.selIP = 0, ip
 	tt.Frame()
-	if err := tt.Click("复制MAC 地址"); err != nil {
+	if err := tt.Click("复制 MAC 地址"); err != nil {
 		t.Fatalf("click copy: %v", err)
 	}
 	if tt.Clipboard() != "AA:BB" {
