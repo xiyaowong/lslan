@@ -517,6 +517,10 @@ func (a *app) treeCell(c *ui.Context, col string, k treeKey) {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Size(8, 8).Radius(4).Background(stateDot(t, h)).Shrink(0)
 			ui.Text(c, h.IP.String()).FontFeatures("tnum").TextColor(text)
+			if a.isSelf(h.IP) {
+				bg, fg := softPill(t)
+				pill(c, "本机", bg, fg)
+			}
 			if h.Gateway {
 				bg, fg := gatewayPill(t)
 				pill(c, "网关", bg, fg)
@@ -529,7 +533,12 @@ func (a *app) treeCell(c *ui.Context, col string, k treeKey) {
 	case "hostname":
 		// The port's own name reads already in the first cell.
 		if !port {
-			ui.Text(c, orDash(h.Hostname)).SingleLine().TextColor(text).Tooltip(h.Hostname)
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				if kind := deviceKindOf(h, a.ports[k.IP]); kind != kindUnknown {
+					ui.Text(c, kind.Label()).FontSize(12).TextColor(t.Accent).Shrink(0)
+				}
+				ui.Text(c, orDash(h.Hostname)).SingleLine().TextColor(text).Tooltip(h.Hostname)
+			})
 		}
 	case "vendor":
 		if !port {
