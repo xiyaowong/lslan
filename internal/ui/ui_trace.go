@@ -170,6 +170,6 @@ func (a *app) tracePane(c *ui.Context, t *ui.Theme) {
 		})
 		ui.List(c, &a.traceList, len(a.traceLines), func(i int) {
 			ui.Text(c, a.traceLines[i]).Font("monospace").FontSize(12)
-		}).Background(t.Background).Radius(6).Padding(10).Height(140)
+		}).Background(t.Background).Radius(6).Padding(10).Height(toolPaneHeight)
 	})
 }

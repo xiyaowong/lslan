@@ -157,8 +157,6 @@ func (a *app) commandBar(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, "未找到可用网卡").FontSize(13).TextColor(t.Danger)
 			}
 			ui.Box(c).Grow(1)
-			ui.Checkbox(c, &a.withPorts, "顺带扫描端口").FontSize(12).
-				Tooltip("扫描时一并查看在线地址开放的端口")
 			switch {
 			case a.scanStopping:
 				ui.Button(c, "正在停止…").Disabled(true)
@@ -172,7 +170,19 @@ func (a *app) commandBar(c *ui.Context, t *ui.Theme) {
 				}
 			}
 		})
-		a.rangeBar(c, t)
+		// The sweep range and its options share the second line: on the
+		// first, the adapter would have to give up too much room.
+		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
+			fieldLabel(c, t, "范围")
+			a.ipField(c, t)
+			if ui.Button(c, "整个网段").Disabled(locked).Clicked() && !locked {
+				a.fillRange()
+			}
+			ui.Box(c).Grow(1)
+			ui.Checkbox(c, &a.withPorts, "顺带扫描端口").FontSize(12).
+				Tooltip("扫描时一并查看在线地址开放的端口")
+		})
+		a.rangeNote(c, t)
 	})
 }
 
@@ -182,27 +192,25 @@ func fieldLabel(c *ui.Context, t *ui.Theme, s string) {
 	ui.Text(c, s).FontSize(12).Width(36).TextColor(t.TextMuted).Shrink(0)
 }
 
-func (a *app) rangeBar(c *ui.Context, t *ui.Theme) {
-	locked := a.scanning
-	ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-		fieldLabel(c, t, "范围")
-		a.ipField(c, t)
-		if ui.Button(c, "整个网段").Disabled(locked).Clicked() && !locked {
-			a.fillRange()
-		}
-		if n, ok := a.rangeTotal(); ok {
-			switch {
-			case n > rangeLimit:
-				ui.Textf(c, "一次最多扫 %d 个地址，请先收窄范围", rangeLimit).
-					FontSize(12).TextColor(t.Danger).SingleLine()
-			case n > 256:
-				if ui.Button(c, "收窄到本网段").Disabled(locked).Clicked() && !locked {
-					a.narrowRange()
-				}
-				ui.Textf(c, "共 %d 个地址，扫描会比较慢", n).FontSize(12).TextColor(t.TextMuted).SingleLine()
+// rangeNote is the note under the range: the narrowing offer for a wide
+// span, and the limit past which a sweep is refused.
+func (a *app) rangeNote(c *ui.Context, t *ui.Theme) {
+	n, ok := a.rangeTotal()
+	if !ok {
+		return
+	}
+	switch {
+	case n > rangeLimit:
+		ui.Textf(c, "一次最多扫 %d 个地址，请先收窄范围", rangeLimit).
+			FontSize(12).TextColor(t.Danger).SingleLine()
+	case n > 256:
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			if ui.Button(c, "收窄到本网段").Disabled(a.scanning).Clicked() && !a.scanning {
+				a.narrowRange()
 			}
-		}
-	})
+			ui.Textf(c, "共 %d 个地址，扫描会比较慢", n).FontSize(12).TextColor(t.TextMuted).SingleLine()
+		})
+	}
 }
 
 // ipField is one field holding both addresses: eight octet cells with
@@ -295,11 +303,15 @@ func (a *app) prevEditable(i int) int {
 	return -1
 }
 
+// statusBarHeight is the bar's height, shared by the bar and the room the
+// body leaves it.
+const statusBarHeight = 32
+
 // statusBar sits at the bottom, outside the cards, so no panel drag can
 // push it out of the window: tallies, the scan progress, errors, and the
 // offline filter.
 func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
-	ui.Row(c).Height(32).Padding(0, gutter).Gap(18).AlignItems(ui.Center).Shrink(0).Children(func() {
+	ui.Row(c).Height(statusBarHeight).Padding(0, gutter).Gap(18).AlignItems(ui.Center).Shrink(0).Children(func() {
 		// The green dot is about who is here now; it should not stay lit
 		// when nobody is.
 		a.stat(c, t, "在线", a.onlineCount(), a.onlineCount() > 0)
