@@ -238,7 +238,7 @@ func (a *app) rangeNote(c *ui.Context, t *ui.Theme) {
 	}
 	switch {
 	case n > rangeLimit:
-		ui.Textf(c, "一次最多扫 %d 个地址，请先收窄范围", rangeLimit).
+		ui.Textf(c, "一次最多扫描 %d 个地址，请缩小范围", rangeLimit).
 			FontSize(12).TextColor(t.Danger).SingleLine()
 	case n > 256:
 		ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Children(func() {

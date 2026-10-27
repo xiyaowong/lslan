@@ -61,8 +61,8 @@ func (a *app) startPing(ip netip.Addr) {
 	}
 	sess, err := a.startPingFn(ctx, ip)
 	if err != nil {
-		a.pingLines = append(a.pingLines, "Ping 没能启动，请稍后再试")
-		a.feedPing("Ping 没能启动，请稍后再试", false)
+		a.pingLines = append(a.pingLines, "Ping 启动失败，请稍后重试")
+		a.feedPing("Ping 启动失败，请稍后重试", false)
 		a.ping.cancel = nil
 		cancel()
 		return

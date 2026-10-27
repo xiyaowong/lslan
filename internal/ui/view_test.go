@@ -186,7 +186,7 @@ func TestPingTerminalFallback(t *testing.T) {
 	a.startPing(ip)
 	tt.Frame()
 
-	for _, s := range []string{"打不开实时输出窗口", "Ping 没能启动"} {
+	for _, s := range []string{"打不开实时输出窗口", "Ping 启动失败"} {
 		if !tt.HasText(s) {
 			t.Errorf("%q missing, texts %q", s, tt.Texts())
 		}

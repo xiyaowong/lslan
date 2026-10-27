@@ -74,7 +74,7 @@ func (a *app) traceRoute(ip netip.Addr) {
 	}
 	stdout, wait, err := a.traceStarter(ctx, ip)
 	if err != nil {
-		a.feedTrace("路由跟踪没能启动，请稍后再试", false)
+		a.feedTrace("路由跟踪启动失败，请稍后重试", false)
 		a.finishTrace(gen)
 		return
 	}

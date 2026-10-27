@@ -161,16 +161,16 @@ func (a *app) startWake() string {
 	w := &a.wake
 	ip, ok := a.wakeTarget()
 	if !ok {
-		w.errMsg = "地址不对，要像 192.168.1.20 这样"
+		w.errMsg = "地址格式不正确，例如 192.168.1.20"
 		return ""
 	}
 	mac, ok := scan.ParseMAC(w.mac)
 	if !ok {
-		w.errMsg = "MAC 不对，要 12 位，像 aa:bb:cc:dd:ee:ff"
+		w.errMsg = "MAC 地址格式不正确，需要 12 位，例如 aa:bb:cc:dd:ee:ff"
 		return ""
 	}
 	if err := a.wakeSend(a.currentNIC(), mac); err != nil {
-		w.errMsg = "信号没能发出去，请检查网卡后重试"
+		w.errMsg = "信号发送失败，请检查网卡后重试"
 		return ""
 	}
 	w.mac = mac
@@ -393,9 +393,9 @@ func (a *app) wakeScanLabel() string {
 func (a *app) wakeScanBlocker() string {
 	switch {
 	case a.selectedNIC() == nil:
-		return "先选一块网卡，才能扫描地址"
+		return "请先选择网卡，才能扫描地址"
 	case !a.rangeFits():
-		return "范围太大或没填完，请先调整上面的地址范围"
+		return "范围过大或填写不完整，请调整地址范围"
 	}
 	return ""
 }
@@ -409,9 +409,9 @@ func (a *app) wakeScanNote() string {
 	case a.swept():
 		return ""
 	case len(a.nics) == 0:
-		return "先选一块网卡，才能扫描地址"
+		return "请先选择网卡，才能扫描地址"
 	}
-	return "还没扫描过地址，点右边的按钮扫一次"
+	return "还没有扫描过地址，请点击右侧按钮扫描"
 }
 
 // wakeReady reports whether the send can go: an address and a MAC.
@@ -436,16 +436,16 @@ func (a *app) wakeProblem() string {
 		if strings.TrimSpace(w.ipText) == "" {
 			return ""
 		}
-		return "地址不对，要像 192.168.1.20 这样"
+		return "地址格式不正确，例如 192.168.1.20"
 	}
 	if strings.TrimSpace(w.mac) == "" {
-		return "MAC 没找到，填设备标签上的那一串"
+		return "未找到这台设备的 MAC 地址，请按设备标签填写"
 	}
 	if _, ok := scan.ParseMAC(w.mac); !ok {
-		return "MAC 不对，要 12 位，像 aa:bb:cc:dd:ee:ff"
+		return "MAC 地址格式不正确，需要 12 位，例如 aa:bb:cc:dd:ee:ff"
 	}
 	if !a.currentNIC().IP.IsValid() {
-		return "先选一块网卡，才知道从哪发出去"
+		return "请先选择网卡，才能确定发送来源"
 	}
 	return ""
 }

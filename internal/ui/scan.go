@@ -20,12 +20,12 @@ func (a *app) startScan() {
 	}
 	start, end, ok := a.parseRange()
 	if !ok {
-		a.scanErr = "IP 范围无效，请填写完开始和结束 IP"
+		a.scanErr = "请填写完整的开始和结束 IP"
 		return
 	}
 	n, _ := rangeCount(start, end)
 	if n > rangeLimit {
-		a.scanErr = "范围太大了，请先收窄"
+		a.scanErr = "范围过大，请先缩小范围"
 		return
 	}
 	if a.scanner == nil {
@@ -44,7 +44,7 @@ func (a *app) startScan() {
 	a.scanCancelled = false
 	a.scanErr = ""
 	if stopped != "" {
-		a.scanNote = "重新扫描了，已停止 " + stopped
+		a.scanNote = "已停止 " + stopped + "，开始新的扫描"
 	}
 	a.progress = model.Progress{Total: int(n)}
 	a.hosts = map[netip.Addr]model.Host{}
@@ -85,9 +85,9 @@ func (a *app) stopTools() string {
 func scanStartError(err error) string {
 	switch {
 	case errors.Is(err, scan.ErrBusy):
-		return "已经在扫描了，等这次扫完再试"
+		return "正在扫描，请等待当前扫描完成"
 	case errors.Is(err, scan.ErrRangeReversed):
-		return "开始地址比结束地址大，请调换一下"
+		return "开始地址不能大于结束地址"
 	default:
 		return "无法开始扫描，请检查网卡后重试"
 	}
@@ -150,6 +150,6 @@ func (a *app) applyEvent(ev scan.Event) {
 		}
 	case scan.EventError:
 		a.scanning = false
-		a.scanErr = "扫描出了点问题，已停止。可重新开始扫描"
+		a.scanErr = "扫描中断，已停止"
 	}
 }
