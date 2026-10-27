@@ -299,7 +299,11 @@ func (a *app) portSection(c *ui.Context, t *ui.Theme, h model.Host) {
 				})
 				return
 			}
-			ui.Scroll(c).TrackScroll(&a.portScroll).Height(float32(min(openCount, 5)) * 34).
+			// Rows are 34 high with a 1px divider between; sizing by rows
+			// alone left the last one clipped and a scrollbar showing.
+			shown := min(openCount, 5)
+			ui.Scroll(c).TrackScroll(&a.portScroll).
+				Height(float32(shown*portRowHeight + shown - 1)).
 				Children(func() {
 					for i, p := range open {
 						if i > 0 {
@@ -326,11 +330,15 @@ func (a *app) portProbing(ip netip.Addr) bool {
 	return a.sweepPending[ip]
 }
 
+// portRowHeight is a port row's height; the service list uses the same
+// measure so the two line up.
+const portRowHeight = 34
+
 // portRow is one port: the number, the service in plain words, its next
 // step (issue #18) as a text button, and a button copying the port.
 func (a *app) portRow(c *ui.Context, t *ui.Theme, ip netip.Addr, p model.Port) {
 	acts := portActions(ip, p)
-	ui.Row(c).Height(34).Padding(0, 8, 0, 12).AlignItems(ui.Center).Gap(8).Children(func() {
+	ui.Row(c).Height(portRowHeight).Padding(0, 8, 0, 12).AlignItems(ui.Center).Gap(8).Children(func() {
 		ui.Textf(c, "%d", p.Number).FontSize(13).FontWeight(600).FontFeatures("tnum").Width(42).
 			TextAlign(ui.End)
 		ui.Text(c, portLabel(p)).FontSize(13).SingleLine().TextColor(t.TextMuted)

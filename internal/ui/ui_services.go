@@ -61,7 +61,11 @@ func (a *app) serviceSection(c *ui.Context, t *ui.Theme, h model.Host) {
 			if i > 0 {
 				ui.Divider(c).Shrink(0)
 			}
-			ui.Row(c).Height(34).Padding(0, 8, 0, 12).AlignItems(ui.Center).Gap(8).Children(func() {
+			ui.Row(c).Height(portRowHeight).Padding(0, 8, 0, 12).AlignItems(ui.Center).Gap(8).Children(func() {
+				// The port column is left empty, so the service names line
+				// up with the port section below rather than starting 50px
+				// to the left of them.
+				ui.Box(c).Width(42).Shrink(0)
 				ui.Text(c, serviceLabel(sv)).SingleLine().FontSize(13)
 				ui.Box(c).Grow(1)
 				if sv.Port > 0 {
