@@ -58,6 +58,16 @@ func (a *app) telnetVisible(ip netip.Addr) bool {
 	return a.telnetIP == ip && (a.telnetPending || a.telnetTerm != nil || a.telnetErr != "")
 }
 
+// tnumFor picks the figures of a fact: a time and a hardware address read
+// steadier in equal width, a name does not.
+func tnumFor(label string) string {
+	switch label {
+	case "上次在线", "MAC 地址":
+		return "tnum"
+	}
+	return ""
+}
+
 // detailHeader names the device and offers to put the panel away.
 func (a *app) detailHeader(c *ui.Context, t *ui.Theme, h model.Host) {
 	ui.Column(c).Gap(8).Shrink(0).Children(func() {
@@ -104,7 +114,8 @@ func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
 		value := f.value
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
 			ui.Text(c, f.label).FontSize(12).Width(64).TextColor(t.TextMuted).Shrink(0)
-			ui.Text(c, orDash(value)).FontSize(13).SingleLine().Tooltip(value)
+			ui.Text(c, orDash(value)).FontSize(13).SingleLine().Tooltip(value).
+				FontFeatures(tnumFor(f.label))
 			// A MAC is worth copying for router bindings and filters; the
 			// other facts live on the screen that shows them.
 			if f.label == "MAC 地址" && value != "" {
