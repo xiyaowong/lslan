@@ -1,7 +1,7 @@
 {
   "name": "lslan",
   "identifier": "com.example.lslan",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "out": "build",
   "windows": {
     "displayName": "局域网扫描"
