@@ -38,6 +38,9 @@ type wakeState struct {
 	filled string
 	// errMsg is why the last send did not go, "" when none was tried.
 	errMsg string
+	// wakeErr is the scan's last failure, kept inside the dialog: the
+	// status bar that normally shows it is behind the dialog's backdrop.
+	wakeErr string
 
 	waiting    bool
 	waitIP     netip.Addr
@@ -305,10 +308,20 @@ func (a *app) wakeDialog(c *ui.Context, t *ui.Theme) {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, a.wakeScanNote()).FontSize(12).TextColor(t.TextMuted).Shrink(1).SingleLine()
 				ui.Box(c).Grow(1)
-				if btn := smallButton(c, a.wakeScanLabel()).Disabled(a.scanning); !a.scanning && btn.Clicked() {
+				// The scan's own errors show in the status bar, which this
+				// dialog covers; say why here instead.
+				if btn := smallButton(c, a.wakeScanLabel()).
+					Disabled(a.scanning || a.wakeScanBlocker() != ""); !a.scanning && btn.Clicked() {
+					a.wake.wakeErr = ""
 					a.startScan()
+					a.wake.wakeErr = a.scanErr
 				}
 			})
+			if a.wake.wakeErr != "" {
+				ui.Text(c, a.wake.wakeErr).FontSize(12).TextColor(t.Danger).SingleLine()
+			} else if why := a.wakeScanBlocker(); why != "" {
+				ui.Text(c, why).FontSize(12).TextColor(t.TextMuted).SingleLine()
+			}
 
 			if picks := a.wakePicks(); len(picks) > 0 {
 				ui.Column(c).Gap(6).Children(func() {
@@ -375,6 +388,19 @@ func (a *app) wakeScanLabel() string {
 	return "扫描地址"
 }
 
+// wakeScanBlocker says what keeps the dialog's scan from starting, "" when
+// nothing does: the same checks startScan makes, said in the dialog rather
+// than in the status bar behind it.
+func (a *app) wakeScanBlocker() string {
+	switch {
+	case a.selectedNIC() == nil:
+		return "先选一块网卡,才能扫描地址"
+	case !a.rangeFits():
+		return "范围太大或没填完,请先调整上面的地址范围"
+	}
+	return ""
+}
+
 // wakeScanNote says where the picks come from: the sweep's progress, or
 // that none has run yet.
 func (a *app) wakeScanNote() string {
@@ -433,7 +459,12 @@ func (a *app) wakeStatus(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
+		ip := w.waitIP.String()
 		ui.Spinner(c)
-		ui.Text(c, "正在等 "+w.waitIP.String()+" 上线").FontSize(12).TextColor(t.TextMuted)
+		ui.Text(c, "正在等 "+ip+" 上线").FontSize(12).TextColor(t.TextMuted)
+		if flatButton(c, "不等了").Clicked() {
+			a.stopWakeWait()
+			a.wakeNote = "不再等 " + ip + " 上线,可以稍后再扫一次"
+		}
 	})
 }
