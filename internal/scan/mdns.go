@@ -37,9 +37,9 @@ var mdnsServiceTypes = []string{
 	"_ftp._tcp", "_printer._tcp", "_scanner._tcp", "_afpovertcp._tcp",
 }
 
-// mdnsMerge receives one host's mDNS facts; either argument may be
-// empty. Called from mdns goroutines.
-type mdnsMerge func(ip netip.Addr, hostname string, svcs []model.Service)
+// mdnsMerge receives one host's mDNS facts; any argument may be empty.
+// Called from mdns goroutines.
+type mdnsMerge func(ip netip.Addr, hostname, kind string, svcs []model.Service)
 
 // mdnsRunner runs the two mDNS routes until ctx is done: unicast
 // queries to hosts the sweep finds — unicast crosses wireless relays
@@ -213,14 +213,24 @@ func (m *mdnsRunner) handle(src netip.Addr, pkt []byte) {
 	if msg.Unpack(pkt) != nil {
 		return
 	}
+	// Records arrive in either section: answers to our question in
+	// Answer, and the SRV/TXT a device adds so it need not be asked again
+	// in Additional. Both describe the device.
+	records := make([]dns.RR, 0, len(msg.Answer)+len(msg.Extra))
+	records = append(records, msg.Answer...)
+	records = append(records, msg.Extra...)
+
 	var ptrs []*dns.PTR
 	var srvs []*dns.SRV
-	for _, rr := range msg.Answer {
+	txts := map[string]*dns.TXT{} // by owner name: instance or host
+	for _, rr := range records {
 		switch r := rr.(type) {
 		case *dns.PTR:
 			ptrs = append(ptrs, r)
 		case *dns.SRV:
 			srvs = append(srvs, r)
+		case *dns.TXT:
+			txts[strings.ToLower(r.Hdr.Name)] = r
 		}
 	}
 	if len(ptrs) == 0 && len(srvs) == 0 {
@@ -236,7 +246,7 @@ func (m *mdnsRunner) handle(src netip.Addr, pkt []byte) {
 		byInstance[strings.ToLower(s.Hdr.Name)] = s
 	}
 	var svcs []model.Service
-	var hostname string
+	var hostname, kind string
 	for _, p := range ptrs {
 		if strings.EqualFold(p.Hdr.Name, mdnsMetaName) {
 			continue
@@ -248,18 +258,60 @@ func (m *mdnsRunner) handle(src netip.Addr, pkt []byte) {
 		if hostname == "" {
 			hostname = strings.TrimSuffix(s.Target, ".")
 		}
+		// A TXT belongs to the instance it is named for; on some devices
+		// it hangs off the host name instead, which modelOf covers.
+		text := txtMap(txts[strings.ToLower(p.Ptr)])
 		svcs = append(svcs, model.Service{
 			Name: mdnsType(p.Hdr.Name),
 			Port: int(s.Port),
+			Text: text,
 		})
+		if kind == "" {
+			kind = modelOf(text)
+		}
 	}
 	if hostname == "" && len(srvs) > 0 {
 		hostname = strings.TrimSuffix(srvs[0].Target, ".")
 	}
+	if kind == "" && hostname != "" {
+		kind = modelOf(txtMap(txts[strings.ToLower(hostname+".")]))
+	}
 	if len(svcs) == 0 && hostname == "" {
 		return
 	}
-	m.merge(src, hostname, svcs)
+	m.merge(src, hostname, kind, svcs)
+}
+
+// txtMap turns a TXT record's "key=value" strings into a map, dropping
+// entries without a key.
+func txtMap(t *dns.TXT) map[string]string {
+	if t == nil || len(t.Txt) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(t.Txt))
+	for _, kv := range t.Txt {
+		k, v, ok := strings.Cut(kv, "=")
+		if !ok || k == "" {
+			continue
+		}
+		out[strings.ToLower(k)] = v
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// modelOf picks the model a device names itself by. Devices spell it
+// differently: Apple puts "model=MacBookPro18,3" in _device-info, AirPlay
+// receivers put a display name in "model", printers put "md=" and "usb_MDL".
+func modelOf(text map[string]string) string {
+	for _, k := range []string{"model", "md", "usb_mdl", "ty", "product"} {
+		if v := strings.TrimSpace(text[k]); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // addType remembers a type learned from a meta answer and asks every

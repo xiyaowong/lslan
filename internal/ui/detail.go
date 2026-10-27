@@ -5,6 +5,7 @@ import (
 	"net/netip"
 	"os/exec"
 	"slices"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 
@@ -116,12 +117,20 @@ func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
 	// the sections around them, so they read as a block rather than as
 	// more sections of the same weight.
 	ui.Column(c).Gap(space(2)).Children(func() {
-		for _, f := range [4]fact{
+		facts := []fact{
 			{"主机名", h.Hostname},
 			{"厂商", h.Vendor},
-			{"MAC 地址", h.MAC},
-			{"上次在线", seen},
-		} {
+		}
+		// The model a device announces is only worth a row when it says
+		// something the vendor does not — "MacBookPro18,3", not "Apple".
+		if h.Model != "" && !strings.EqualFold(h.Model, h.Vendor) {
+			facts = append(facts, fact{"型号", h.Model})
+		}
+		facts = append(facts,
+			fact{"MAC 地址", h.MAC},
+			fact{"上次在线", seen},
+		)
+		for _, f := range facts {
 			value := f.value
 			ui.Row(c).Gap(space(1)).AlignItems(ui.Center).Shrink(0).Children(func() {
 				ui.Text(c, f.label).FontSize(12).Width(64).TextColor(t.TextMuted).Shrink(0)

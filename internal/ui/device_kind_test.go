@@ -21,10 +21,20 @@ func TestDeviceKind(t *testing.T) {
 		{"gateway", model.Host{Gateway: true}, nil, kindRouter},
 		{"printer service", model.Host{Services: []model.Service{{Name: "_ipp._tcp", Port: 631}}}, nil, kindPrinter},
 		{"printer port", model.Host{}, []model.Port{{Number: 9100, Open: true}}, kindPrinter},
-		{"camera vendor", model.Host{Vendor: "Hikvision"}, nil, kindCamera},
+		{"camera by model", model.Host{Model: "Hikvision IPC-HDW1230S"}, nil, kindCamera},
 		{"cast", model.Host{Services: []model.Service{{Name: "_googlecast._tcp", Port: 8009}}}, nil, kindTV},
 		{"nas port", model.Host{}, []model.Port{{Number: 445, Open: true}}, kindNAS},
 		{"nothing", model.Host{}, nil, kindUnknown},
+		// A vendor says who made a device, not what it is: TP-Link makes
+		// routers, cameras and plugs alike, so the vendor alone is no clue.
+		{"vendor alone", model.Host{Vendor: "Tp-Link"}, nil, kindUnknown},
+		// A model the device announced outranks what it serves: an
+		// iPhone airplaying is a phone, not a TV.
+		{"iphone over airplay", model.Host{
+			Model:    "iPhone14,2",
+			Services: []model.Service{{Name: "_airplay._tcp", Port: 7000}},
+		}, nil, kindPhone},
+		{"camera model", model.Host{Model: "IPC-HDW1230S"}, nil, kindCamera},
 	}
 	for _, c := range cases {
 		if got := deviceKindOf(c.host, c.ports); got != c.want {
