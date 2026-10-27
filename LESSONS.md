@@ -33,7 +33,6 @@
 - 窗口标题栏按钮随系统深色模式变白 → 现为自绘标题栏(HideWindowButtons),颜色全部出自 ui.Theme,不再受系统影响;主题深浅切换用 `mygo.Theme.SetSource/IsDark/OnUpdated`,窗口底色 `BackgroundColor` 支持 `light-dark(浅,深)` 自动跟随
 - mygo 自绘标题栏只要还有最小化按钮就把三个全画出来(DisableMaximize 只是画成禁用态,不会消失)→ 要去掉某个按钮只能 `HideWindowButtons` 整个自绘,视图里调 `win.Minimize()/Close()`
 - 表格为涂抹选中行会把主题的 `Accent` 覆写成行底色(`chosenRow`)→ **表内任何前景色都不能用 `t.Accent`**,否则在选中行上就是同色写字(浅色下 1:1 直接隐形);独立 token 见 `kindInk`/`chosenMuted`
-- 主题对比度测试要成对覆盖「卡片上」和「选中行上」,且只测 muted 不够:tint 改写了哪些字段,就得有对应断言,否则配色失误没有测试能发现
 - 模态框还开着时 `c.Toast` 会落在遮罩后面 → 在 `ui.Modal(...)` 之后发,或把话带出来让调用处发
 
 ## 引擎与数据流
@@ -45,5 +44,5 @@
 - 控制台子进程(tracert 等)要 `SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}`(CREATE_NO_WINDOW),否则闪一个黑框到前台
 - 国内设备自报的是内部型号(`MBC31`、`WS7200`、`TL-XDR3010`),不含产品词,靠关键词猜类型覆盖率很低 → 唯一靠谱的是 UPnP 的 `friendlyName`;`AX3000`/`BE3600` 是 Wi-Fi 代际+速率,多家共用,只能说"是路由器"
 - 帧级 mock 编排(多 fake 会话/流配对喂样本)成本很快超过保护价值 → 状态断言能过的就别全帧断言
-- 扫描判在线有三条路(ICMP、ARP 回填的 TCP 探测、mDNS),而唤醒等待只看 ICMP → 只答 TCP 的设备表格写"在线"、等待却永远过不去;任何"等某设备上线"的判定都要和扫描同标准(`probeHostFallback`)
+- 判定同一件事("这台在线吗")散落在多个入口时极易分歧:扫描有三条路,别处只看一条 → 统一到一个判定函数(`probeHostFallback`),新入口复用它而不是另写
 - 对已在线设备"等它上线"没有可点亮的行,结果只会是它本来就那样 → 发信号前先看状态,已在线就直说,别让用户等 30 秒再无声消失
