@@ -185,7 +185,33 @@ func (a *app) commandBar(c *ui.Context, t *ui.Theme) {
 			ui.Checkbox(c, &a.showOffline, "显示离线地址").FontSize(12).
 				Tooltip("把这次没扫到响应的地址也列出来")
 		})
+		// The search narrows the table, so it sits with the table rather
+		// than beside the scan controls.
+		a.searchField(c, t)
 		a.rangeNote(c, t)
+	})
+}
+
+// searchField finds a device among the rows: by address, name, vendor,
+// MAC, type, or an open port. It appears once there are rows to search,
+// since before a sweep it can only find nothing.
+func (a *app) searchField(c *ui.Context, t *ui.Theme) {
+	if len(a.hosts) == 0 {
+		return
+	}
+	ui.Row(c).Gap(space(3)).AlignItems(ui.Center).Children(func() {
+		fieldLabel(c, t, "查找")
+		ui.TextInput(c, &a.search).Label("查找设备").
+			Placeholder("地址、名称、厂商、MAC、端口，或「打印机」这类设备类型").
+			Grow(1).MaxWidth(420)
+		if a.search != "" {
+			if flatButton(c, "清除").Clicked() {
+				a.search = ""
+			}
+			if n := len(a.visibleHosts()); n == 0 {
+				ui.Text(c, "没有匹配的设备").FontSize(12).TextColor(t.TextMuted)
+			}
+		}
 	})
 }
 

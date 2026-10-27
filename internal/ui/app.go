@@ -120,8 +120,10 @@ type app struct {
 	tree        ui.OutlineState[treeKey]
 	sort        ui.SortOrder
 	showOffline bool
-	selRow      int
-	selIP       netip.Addr
+	// search narrows the table to the devices it matches; "" shows all.
+	search string
+	selRow int
+	selIP  netip.Addr
 
 	// cardWidth is the host card's width in DIPs while the detail panel
 	// shows; the panel takes the rest, so a wide window widens the details
