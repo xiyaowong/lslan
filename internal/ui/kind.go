@@ -73,7 +73,10 @@ var kindRules = []kindRule{
 	{kind: kindPhone, services: []string{"_raop._tcp", "_spotify-connect._tcp"}},
 	{kind: kindNAS,
 		services: []string{"_smb._tcp", "_afpovertcp._tcp"},
-		ports:    []int{445, 548, 2049}},
+		// 445 and 548 are no evidence here: every Windows machine opens
+		// 445 for its own file sharing, and a Mac answers 548. NFS (2049)
+		// is what a storage box runs and a desktop does not.
+		ports: []int{2049}},
 	{kind: kindComputer,
 		services: []string{"_workstation._tcp", "_ssh._tcp"},
 		ports:    []int{3389}},
@@ -130,16 +133,21 @@ var modelHints = []struct {
 }
 
 // deviceKindOf infers the kind from the strongest signals the sweep has:
-// the gateway flag, a model the device announced, what it serves, then
-// the name it answers to. A device that matches none says 未知 rather
-// than a guess.
+// the gateway flag, a model the device announced, the name it answers to,
+// then what it serves. A device that matches none says 未知 rather than a
+// guess.
 func deviceKindOf(h model.Host, ports []model.Port) deviceKind {
 	if h.Gateway {
 		return kindRouter
 	}
 	// The model is the device talking about itself, so it outranks
-	// everything inferred from what it serves.
+	// everything inferred from what it serves. The name it answers to
+	// says as much about what it is ("wongxy.laptop"), and outranks the
+	// ports too: a Windows PC opens 445 like a NAS does.
 	if kind, ok := kindFromModel(h.Model); ok {
+		return kind
+	}
+	if kind, ok := kindFromModel(h.Hostname); ok {
 		return kind
 	}
 	for _, r := range kindRules {
@@ -147,16 +155,11 @@ func deviceKindOf(h model.Host, ports []model.Port) deviceKind {
 			return r.kind
 		}
 	}
-	// A name the device answered to can still say it, when it says
-	// "camera" or "printer" in the hostname.
-	if kind, ok := kindFromModel(h.Hostname); ok {
-		return kind
-	}
 	return kindUnknown
 }
 
-// kindFromModel reads a product name for the kinds whose names are
-// distinctive.
+// kindFromModel reads a name for the kinds whose names are distinctive:
+// the model a device announced about itself, or the name it answers to.
 func kindFromModel(name string) (deviceKind, bool) {
 	if name == "" {
 		return kindUnknown, false
