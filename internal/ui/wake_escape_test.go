@@ -19,7 +19,7 @@ func TestWakeDialogScanSaysWhy(t *testing.T) {
 	tt := ui.NewTester(a.View, 1040, 720)
 	a.openWake()
 	tt.Frame()
-	if !tt.HasText("先选一块网卡") {
+	if !tt.HasText("请先选择网卡") {
 		t.Errorf("no reason given in the dialog, texts %q", tt.Texts())
 	}
 }

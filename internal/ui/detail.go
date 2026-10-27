@@ -206,7 +206,7 @@ func (a *app) detailActions(c *ui.Context, h model.Host) {
 		// Opening a window speaks for itself; only a failure needs words.
 		if smallButton(c, "浏览共享").Clicked() {
 			if err := exec.Command("explorer.exe", `\\`+h.IP.String()).Start(); err != nil {
-				c.Toast("没能打开共享,请确认设备已开机")
+				c.Toast("无法打开共享，请确认设备已开机")
 			}
 		}
 		if smallButton(c, "浏览器打开").Clicked() {
@@ -341,7 +341,7 @@ func (a *app) portSection(c *ui.Context, t *ui.Theme, h model.Host) {
 			ui.Text(c, "正在扫描端口…").FontSize(12).TextColor(t.TextMuted)
 		})
 	case a.portIP == h.IP && a.portErr != "":
-		ui.Text(c, "端口扫描没有完成，请稍后再试").FontSize(12).TextColor(t.Danger).Shrink(0)
+		ui.Text(c, "端口扫描未完成，请稍后重试").FontSize(12).TextColor(t.Danger).Shrink(0)
 	case done:
 		openCount := 0
 		var open []model.Port

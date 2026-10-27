@@ -107,7 +107,7 @@ func (a *app) runPortScan(ip netip.Addr, i int) {
 			}
 			a.portScanning = false
 			if err != nil {
-				a.portErr = "端口扫描没跑完，请稍后再试"
+				a.portErr = "端口扫描未完成，请稍后重试"
 			} else {
 				a.ports[ip] = ports
 			}
