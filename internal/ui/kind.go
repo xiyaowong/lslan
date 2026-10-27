@@ -84,9 +84,11 @@ var kindRules = []kindRule{
 // says who made it, not what it is.
 //
 // The words are the ones products actually carry: "IPC" is what cameras
-// are called in their model numbers, "AX3000" and "Archer" are routers,
-// "DS-2CD" and "IPC-HDW" are Hikvision cameras, "OMADA" and "DECO" are
-// TP-Link's network gear.
+// are called in their model numbers, "DS-2CD" and "IPC-HDW" are Hikvision
+// cameras, "OMADA" and "DECO" are TP-Link's network gear. Domestic boxes
+// announce bare internal codes — "TL-XDR3010", "WS7200", "MJSXJ22CM" — so
+// the codes that have stayed stable are listed too, along with the few
+// Chinese words a box that names itself in Chinese would use.
 var modelHints = []struct {
 	kind  deviceKind
 	words []string
@@ -94,16 +96,19 @@ var modelHints = []struct {
 	{kindCamera, []string{
 		"camera", "ipcam", "ipc", "nvr", "dvr", "ds-2", "dh-", "reolink",
 		"hikvision", "dahua", "foscam", "amcrest", "wyze cam",
+		"tapo c", "mjsxj", "摄像头", "摄像机",
 	}},
 	{kindPrinter, []string{
 		"printer", "print", "laserjet", "officejet", "deskjet", "envy",
 		"pixma", "ecotank", "workforce", "imageclass", "brother hl",
-		"brother dcp", "brother mfc",
+		"brother dcp", "brother mfc", "打印机",
 	}},
 	{kindRouter, []string{
 		"router", "gateway", "access point", "archer", "deco", "omada",
 		"orbi", "velop", "eero", "amplifi", "ax3000", "ax1800", "ac1200",
-		"ac1750", "mesh", "repeater", "extender",
+		"ac1750", "ax6000", "be3600", "mesh", "repeater", "extender",
+		"tl-xdr", "tl-7dr", "ws5200", "ws7100", "ws7200", "ws8700",
+		"miwifi", "mi router", "mi-router", "路由",
 	}},
 	{kindNAS, []string{
 		"diskstation", "rackstation", "synology", "qnap", "readynas",
@@ -111,7 +116,7 @@ var modelHints = []struct {
 	}},
 	{kindTV, []string{
 		"tv", "bravia", "chromecast", "apple tv", "roku", "fire tv",
-		"shield", "mi box", "apple tv",
+		"shield", "mi box", "电视",
 	}},
 	{kindPhone, []string{
 		"iphone", "ipad", "galaxy", "pixel", "redmi", "oneplus", "sm-",
