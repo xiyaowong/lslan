@@ -66,7 +66,12 @@ func (a *app) serviceSection(c *ui.Context, t *ui.Theme, h model.Host) {
 				ui.Box(c).Grow(1)
 				if sv.Port > 0 {
 					ui.Textf(c, "%d", sv.Port).FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted)
+					// Not every service has a next step mapped (a Chromecast
+					// or an AirPlay speaker, say); it shows without one.
 					acts := portActions(h.IP, model.Port{Number: sv.Port, Service: mdnsShort(sv)})
+					if len(acts) == 0 {
+						return
+					}
 					if flatButton(c, acts[0].Label).Clicked() {
 						if acts[0].Kind == portTelnet {
 							a.startTelnet(h.IP, sv.Port)

@@ -5,6 +5,7 @@ package scan
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 	"slices"
@@ -108,6 +109,14 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 		s.mu.Unlock()
 	}()
 
+	// A panic in a sweep goroutine would take the whole app down; report
+	// it as a failed sweep instead, so the interface can say so and carry on.
+	defer func() {
+		if r := recover(); r != nil {
+			s.emitFinal(ctx, Event{Kind: EventError, Err: fmt.Errorf("scan: sweep failed: %v", r)})
+		}
+	}()
+
 	gateway := uint32(0)
 	gatewayValid := nic.Gateway.IsValid() && nic.Gateway.Is4()
 	if gatewayValid {
@@ -142,6 +151,11 @@ func (s *Scanner) sweep(ctx context.Context, cancel context.CancelFunc, nic mode
 			return
 		}
 		key := be32(ip)
+		// The passive ear hears the whole subnet, not just the range asked
+		// for; a host outside it is not part of this sweep.
+		if key < lo || key > hi {
+			return
+		}
 		dataMu.Lock()
 		h, known := hosts[key]
 		if !known {
@@ -354,7 +368,10 @@ func (h *hostnames) wait() { h.wg.Wait() }
 // responding, as an offline host each. It must be called only after the
 // sweep is done adding hosts.
 func offlineBackfill(lo, hi uint32, known map[uint32]struct{}) []model.Host {
-	out := make([]model.Host, 0, int(hi-lo)+1-len(known))
+	// known may hold keys outside [lo,hi] (mDNS hears the whole subnet), so
+	// the spare capacity is floored at zero rather than going negative.
+	spare := int(hi-lo) + 1 - len(known)
+	out := make([]model.Host, 0, max(spare, 0))
 	for key := lo; ; key++ {
 		if _, ok := known[key]; !ok {
 			out = append(out, model.Host{IP: addrFromUint32(key), State: model.StateOffline})

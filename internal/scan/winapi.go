@@ -31,7 +31,7 @@ const (
 	arpTypeStatic = 4
 
 	gaaIncludePrefix   = 0x10
-	gaaIncludeGateways = 0x40
+	gaaIncludeGateways = 0x80 // GAA_FLAG_INCLUDE_GATEWAYS; 0x40 is WINS info
 
 	errBufferOverflow       = 111 // ERROR_BUFFER_OVERFLOW
 	errInsufficientBuffer   = 122 // ERROR_INSUFFICIENT_BUFFER

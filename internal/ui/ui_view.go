@@ -142,6 +142,13 @@ func (a *app) commandBar(c *ui.Context, t *ui.Theme) {
 				}
 			case a.nics == nil:
 				ui.Text(c, "正在加载网卡…").FontSize(13).TextColor(t.TextMuted)
+			case a.nicErr != "":
+				ui.Text(c, "没读到网卡").FontSize(13).TextColor(t.Danger)
+				if flatButton(c, "重试").Clicked() {
+					a.nicErr = ""
+					a.nics = nil // show the load again while it retries
+					go a.loadNICs()
+				}
 			default:
 				ui.Text(c, "未找到可用网卡").FontSize(13).TextColor(t.Danger)
 			}

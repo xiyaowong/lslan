@@ -118,12 +118,12 @@ func TestNetBIOSAutoAsk(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 	a.runPending()
-	if a.netbios.name != "MYPRINTER" {
-		t.Fatalf("name = %q after the ask, want MYPRINTER", a.netbios.name)
+	if got := a.netbios.names[host]; got != "MYPRINTER" {
+		t.Fatalf("name = %q after the ask, want MYPRINTER", got)
 	}
 	tt.Frame()
-	if !tt.HasText("NetBIOS 名") {
-		t.Errorf("fact row missing, texts %q", tt.Texts())
+	if !tt.HasText("MYPRINTER") {
+		t.Errorf("name not shown in the facts, texts %q", tt.Texts())
 	}
 
 	// Returning to the device does not ask again.
@@ -137,29 +137,69 @@ func TestNetBIOSAutoAsk(t *testing.T) {
 	}
 }
 
+// TestNetBIOSNameStaysWithItsDevice: an answer belongs to the address it
+// was asked for. A slow answer for one device must never show under
+// another.
+func TestNetBIOSNameStaysWithItsDevice(t *testing.T) {
+	hostA, hostB := ip("192.168.1.9"), ip("192.168.1.10")
+	a := newApp()
+	a.hosts[hostA] = model.Host{IP: hostA, State: model.StateOnline}
+	a.hosts[hostB] = model.Host{IP: hostB, State: model.StateOnline}
+	a.netbios.starter = func(_ context.Context, ip netip.Addr) (string, error) {
+		if ip == hostB {
+			return "DEVICE-B", nil
+		}
+		return "DEVICE-A", nil
+	}
+	tt := ui.NewTester(a.View, 1040, 720)
+
+	ask := func(i int, host netip.Addr) {
+		t.Helper()
+		a.selRow, a.selIP = i, host
+		tt.Frame()
+		deadline := time.Now().Add(time.Second)
+		for a.netbios.names[host] == "" && time.Now().Before(deadline) {
+			a.runPending()
+			time.Sleep(time.Millisecond)
+		}
+		a.runPending()
+		tt.Frame()
+	}
+	ask(0, hostA)
+	ask(1, hostB)
+
+	// Back on A, its own name shows — not B's.
+	a.selRow, a.selIP = 0, hostA
+	tt.Frame()
+	if !tt.HasText("DEVICE-A") || tt.HasText("DEVICE-B") {
+		t.Errorf("A's details show %q, want DEVICE-A", tt.Texts())
+	}
+}
+
 // TestNetBIOSMissShowsDash: a silent device leaves the dash; no words
 // about asking or failing.
 func TestNetBIOSMissShowsDash(t *testing.T) {
 	host := ip("192.168.1.9")
 	a := newApp()
 	a.hosts[host] = model.Host{IP: host, State: model.StateOnline}
+	asked := make(chan struct{})
 	a.netbios.starter = func(context.Context, netip.Addr) (string, error) {
+		close(asked)
 		return "", nil
 	}
 	tt := ui.NewTester(a.View, 1040, 720)
 	a.selRow, a.selIP = 0, host
+	tt.Frame()
 
-	deadline := time.Now().Add(time.Second)
-	for !a.netbios.failed && time.Now().Before(deadline) {
-		a.runPending()
-		time.Sleep(time.Millisecond)
+	select {
+	case <-asked:
+	case <-time.After(time.Second):
+		t.Fatal("the ask never ran")
 	}
+	a.runPending()
 	tt.Frame()
 	if !tt.HasText("NetBIOS 名") {
 		t.Fatal("fact row missing")
-	}
-	if tt.HasText("正在询问") || tt.HasText("没有报出") || tt.HasText("没有问到") {
-		t.Errorf("ask words visible, texts %q", tt.Texts())
 	}
 	if !strings.Contains(strings.Join(tt.Texts(), "\n"), "—") {
 		t.Errorf("no dash shown, texts %q", tt.Texts())

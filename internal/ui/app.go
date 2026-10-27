@@ -99,6 +99,9 @@ type app struct {
 	nicOptions []string
 	nicSel     string
 	nicIdx     int
+	// nicErr says reading the adapters failed, which the adapter row shows
+	// with a retry; it is not the same as a machine without adapters.
+	nicErr string
 
 	// ipCells are the segmented control's eight cells: the start address's
 	// four octets, then the end's. cellLock marks that both ends share a
@@ -308,9 +311,13 @@ func (a *app) loadNICs() {
 	nics, err := a.listNICs()
 	a.dispatch(func() {
 		if err != nil {
-			a.scanErr = "读取网卡信息失败，请重启程序试试"
+			// An empty list, not nil: the difference is "loaded, none
+			// found" versus "still loading", and the row offers a retry.
+			a.nics, a.nicOptions = []model.NIC{}, nil
+			a.nicErr = "没读到网卡"
 			return
 		}
+		a.nicErr = ""
 		a.setNICs(nics)
 	})
 }
@@ -497,6 +504,7 @@ func (a *app) startScan() {
 	a.portGen++ // a sweep still probing ports is stale now
 	a.sweepLeft = 0
 	a.sweepPending = nil
+	a.netbiosReset() // a device may have been renamed since
 	a.selRow, a.selIP = -1, netip.Addr{}
 }
 
