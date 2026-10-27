@@ -8,6 +8,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"lslan/internal/model"
+	"lslan/internal/scan"
 )
 
 // wakeApp is an app with the wake side faked: the send recorded, the ARP
@@ -38,6 +39,89 @@ func newWakeApp() *wakeApp {
 	a.wakeEvery = time.Millisecond
 	a.wakeFor = 50 * time.Millisecond
 	return wa
+}
+
+// scanableWakeApp adds a NIC and a fake scanner, so the dialog's sweep can
+// be counted without touching the network.
+func newScanableWakeApp(t *testing.T) (*wakeApp, *int) {
+	t.Helper()
+	wa := newWakeApp()
+	wa.listNICs = func() ([]model.NIC, error) {
+		return []model.NIC{{Name: "以太网", IP: netip.MustParseAddr("192.168.1.23"), PrefixLen: 24}}, nil
+	}
+	wa.rangeForNIC = func(model.NIC) (netip.Addr, netip.Addr) {
+		return netip.MustParseAddr("192.168.1.1"), netip.MustParseAddr("192.168.1.254")
+	}
+	starts := new(int)
+	wa.newScanner = func() scannerIface {
+		return &countingScanner{starts: starts}
+	}
+	return wa, starts
+}
+
+// countingScanner counts the sweeps it was asked to run.
+type countingScanner struct{ starts *int }
+
+func (s *countingScanner) Events() <-chan scan.Event { return make(chan scan.Event) }
+
+func (s *countingScanner) Start(model.NIC, netip.Addr, netip.Addr) error {
+	*s.starts++
+	return nil
+}
+
+func (s *countingScanner) Cancel() {}
+
+// TestWakeSweepsWhenNeverSwept: opening 远程唤醒 before anything was
+// scanned starts a sweep by itself, so there are devices to pick from.
+func TestWakeSweepsWhenNeverSwept(t *testing.T) {
+	wa, starts := newScanableWakeApp(t)
+	tt := ui.NewTester(wa.View, 1040, 720)
+	wa.loadNICs()
+	tt.Frame()
+
+	if err := tt.Click("远程唤醒"); err != nil {
+		t.Fatalf("click the entry: %v", err)
+	}
+	if *starts != 1 {
+		t.Errorf("sweeps = %d, want 1 — the dialog had nothing to offer", *starts)
+	}
+	if !wa.scanning {
+		t.Error("the sweep did not start")
+	}
+	tt.Frame()
+	if !tt.HasText("正在扫描") {
+		t.Errorf("the dialog does not say it is scanning, texts %q", tt.Texts())
+	}
+}
+
+// TestWakeKeepsSweptResults: once a sweep has run, opening the dialog
+// keeps its results rather than emptying the table under the user, and
+// its button offers the sweep again.
+func TestWakeKeepsSweptResults(t *testing.T) {
+	wa, starts := newScanableWakeApp(t)
+	tt := ui.NewTester(wa.View, 1040, 720)
+	wa.loadNICs()
+	host := ip("192.168.1.20")
+	wa.hosts[host] = model.Host{IP: host, State: model.StateOffline, MAC: "aa:bb:cc:dd:ee:ff"}
+	wa.progress = model.Progress{Total: 254, Scanned: 254} // the sweep ran
+	tt.Frame()
+
+	if err := tt.Click("远程唤醒"); err != nil {
+		t.Fatalf("click the entry: %v", err)
+	}
+	if *starts != 0 {
+		t.Errorf("sweeps = %d, want none — the results were already there", *starts)
+	}
+	tt.Frame()
+	if !tt.HasText("192.168.1.20 离线") {
+		t.Errorf("the swept device is not offered, texts %q", tt.Texts())
+	}
+	if err := tt.Click("重新扫描"); err != nil {
+		t.Fatalf("click the sweep button: %v", err)
+	}
+	if *starts != 1 {
+		t.Errorf("sweeps = %d, want 1 from the dialog's button", *starts)
+	}
 }
 
 // TestWakeEntryIsGlobal: 远程唤醒 sits in the status bar, not in a
