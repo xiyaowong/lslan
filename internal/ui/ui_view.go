@@ -340,6 +340,9 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 		}
 		ui.Box(c).Grow(1)
 		a.wakeStatus(c, t)
+		if flatButton(c, "复制清单").Clicked() {
+			a.copyInventory(c)
+		}
 		ui.Checkbox(c, &a.showOffline, "显示离线地址").FontSize(12)
 		a.wakeButton(c)
 		a.aboutButton(c, t)

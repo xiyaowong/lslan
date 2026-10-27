@@ -90,6 +90,9 @@ type app struct {
 	scanCancelled bool
 	scanErr       string
 	scanNote      string
+	// lastSeen holds the MACs of the previous sweep, for the note that
+	// says who came and who went.
+	lastSeen map[string]bool
 	progress      model.Progress
 	hosts         map[netip.Addr]model.Host
 	// withPorts makes a sweep probe the ports of every host it finds;
@@ -502,6 +505,9 @@ func (a *app) startScan() {
 	// The sweep clears the table and the selection, which would hide the
 	// foot's pane and with it every way to stop a running tool.
 	stopped := a.stopTools()
+	// Remember who was here before, by MAC rather than address: an
+	// address may be handed to another device between sweeps.
+	a.lastSeen = a.macSet()
 	a.scanning = true
 	a.scanStopping = false
 	a.scanCancelled = false
@@ -541,6 +547,61 @@ func (a *app) stopTools() string {
 		return ""
 	}
 	return strings.Join(running, "、")
+}
+
+// copyInventory puts the rows on screen on the clipboard as a table: the
+// router's MAC bindings, a note to a family member, a record for later —
+// none of which needs a file, which the app does not write.
+func (a *app) copyInventory(c *ui.Context) {
+	hs := a.visibleHosts()
+	if len(hs) == 0 {
+		c.Toast("还没有可复制的设备")
+		return
+	}
+	var b strings.Builder
+	b.WriteString("IP\t主机名\t厂商\tMAC 地址\t状态\n")
+	for _, h := range hs {
+		fmt.Fprintf(&b, "%s\t%s\t%s\t%s\t%s\n", h.IP, h.Hostname, h.Vendor, h.MAC, stateLabel(h.State))
+	}
+	c.WriteClipboard(b.String())
+	c.Toast("已把 " + strconv.Itoa(len(hs)) + " 台设备复制到剪贴板")
+}
+
+// macSet is the MACs of the devices seen this run, the identity a change
+// note compares by: an address can move between devices, a MAC cannot.
+func (a *app) macSet() map[string]bool {
+	out := make(map[string]bool, len(a.hosts))
+	for _, h := range a.hosts {
+		if h.MAC != "" && h.State != model.StateOffline {
+			out[h.MAC] = true
+		}
+	}
+	return out
+}
+
+// noteChanges says what the sweep found that the last one did not, and
+// what it lost. Only a sweep that ran to the end may draw conclusions:
+// a cancelled one proves nothing about who is gone.
+func (a *app) noteChanges() {
+	if a.lastSeen == nil {
+		return // the first sweep has nothing to compare with
+	}
+	now := a.macSet()
+	added, gone := 0, 0
+	for mac := range now {
+		if !a.lastSeen[mac] {
+			added++
+		}
+	}
+	for mac := range a.lastSeen {
+		if !now[mac] {
+			gone++
+		}
+	}
+	if added == 0 && gone == 0 {
+		return
+	}
+	a.scanNote = "比上次多 " + strconv.Itoa(added) + " 台、少 " + strconv.Itoa(gone) + " 台"
 }
 
 // scanStartError says why a sweep was refused in words the user can act
@@ -598,11 +659,16 @@ func (a *app) applyEvent(ev scan.Event) {
 	case scan.EventDone:
 		a.scanning, a.scanStopping = false, false
 		a.progress = ev.Progress
-		if a.scanCancelled {
-			a.scanCancelled = false
+		cancelled := a.scanCancelled
+		a.scanCancelled = false
+		switch {
+		case cancelled:
 			a.scanNote = "已取消扫描"
-		} else if a.withPorts {
+		case a.withPorts:
 			a.sweepPorts()
+		}
+		if !cancelled {
+			a.noteChanges()
 		}
 	case scan.EventError:
 		a.scanning = false
