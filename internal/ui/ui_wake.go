@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"fmt"
 	"net/netip"
 	"sort"
 	"strings"
@@ -254,7 +255,10 @@ func (a *app) wakeButton(c *ui.Context) {
 }
 
 // openWake opens the dialog on the device shown, when one is; what was
-// typed last otherwise stays.
+// typed last otherwise stays. Nothing has been swept yet means there is no
+// device to pick from, so the sweep starts by itself; a run that already
+// has results keeps them — sweeping again would empty the table under the
+// user for a dialog they may only be looking at.
 func (a *app) openWake() {
 	w := &a.wake
 	w.open, w.errMsg = true, ""
@@ -262,7 +266,14 @@ func (a *app) openWake() {
 		w.ipText = a.selIP.String()
 	}
 	a.wakeFill()
+	if !a.swept() && !a.scanning {
+		a.startScan()
+	}
 }
+
+// swept reports whether a sweep has been started this run, so the wake
+// dialog knows whether it has devices to offer.
+func (a *app) swept() bool { return a.progress.Total > 0 }
 
 // currentNIC is the adapter the frame goes out of: the toolbar's choice,
 // else the first physical one.
@@ -280,7 +291,9 @@ func (a *app) currentNIC() model.NIC {
 
 // wakeDialog is the 远程唤醒 dialog: the devices this run saw offline as
 // one-click picks, an address to type instead, the hardware address
-// filled in by itself and editable, and the send.
+// filled in by itself and editable, and the send. The sweep it opens with
+// is under way or done, so a device it found but the user cannot name yet
+// is one button, 重新扫描, away.
 func (a *app) wakeDialog(c *ui.Context, t *ui.Theme) {
 	w := &a.wake
 	ui.Modal(c, &w.open, func() {
@@ -289,15 +302,29 @@ func (a *app) wakeDialog(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, "给关机的设备发一个唤醒信号,发完会盯一会儿,看它有没有上线").
 				FontSize(12).TextColor(t.TextMuted)
 
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, a.wakeScanNote()).FontSize(12).TextColor(t.TextMuted).Shrink(1).SingleLine()
+				ui.Box(c).Grow(1)
+				if btn := smallButton(c, a.wakeScanLabel()).Disabled(a.scanning); !a.scanning && btn.Clicked() {
+					a.startScan()
+				}
+			})
+
 			if picks := a.wakePicks(); len(picks) > 0 {
 				ui.Column(c).Gap(6).Children(func() {
 					ui.Text(c, "选一台设备").FontSize(12).TextColor(t.TextMuted)
-					ui.Row(c).Gap(6).Wrap().Children(func() {
-						for _, h := range picks {
-							if btn := smallButton(c, wakePickLabel(h)); btn.Clicked() {
-								a.pickWakeDevice(h.IP)
+					// Six devices at a comfortable size, and the window's
+					// least height leaves the fields and the buttons below
+					// theirs: more picks than that scroll rather than run
+					// off the bottom.
+					ui.Scroll(c).Height(120).Clip().Children(func() {
+						ui.Row(c).Gap(6).Wrap().Children(func() {
+							for _, h := range picks {
+								if btn := smallButton(c, wakePickLabel(h)); btn.Clicked() {
+									a.pickWakeDevice(h.IP)
+								}
 							}
-						}
+						})
 					})
 				})
 			}
@@ -334,6 +361,32 @@ func (a *app) wakeDialog(c *ui.Context, t *ui.Theme) {
 			})
 		})
 	})
+}
+
+// wakeScanLabel names the dialog's scan button: a sweep under way cannot
+// start another, so the button keeps its word and is disabled.
+func (a *app) wakeScanLabel() string {
+	if a.scanning {
+		return "正在扫描…"
+	}
+	if a.swept() {
+		return "重新扫描"
+	}
+	return "扫描地址"
+}
+
+// wakeScanNote says where the picks come from: the sweep's progress, or
+// that none has run yet.
+func (a *app) wakeScanNote() string {
+	switch {
+	case a.scanning:
+		return fmt.Sprintf("正在扫描 %d/%d…", a.progress.Scanned, a.progress.Total)
+	case a.swept():
+		return "从这次扫描的结果里选,也可以直接填地址"
+	case len(a.nics) == 0:
+		return "先选一块网卡,才能扫描地址"
+	}
+	return "还没扫描过地址,点右边的按钮扫一次"
 }
 
 // wakeReady reports whether the send can go: an address and a MAC.
