@@ -21,13 +21,32 @@ func TestTraceTreeKilledLive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	go func() { _ = wait() }()
+	waited := make(chan error, 1)
+	go func() { waited <- wait() }()
 	time.Sleep(700 * time.Millisecond) // let the child start
 	cancel()
-	time.Sleep(1200 * time.Millisecond) // and the tree kill land
+	select {
+	case err := <-waited:
+		// The process was killed, so the wait must say so rather than
+		// report a clean exit.
+		if err == nil {
+			t.Error("a killed trace returned no error")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the trace never returned after cancel")
+	}
 
-	out, _ := exec.Command("tasklist", "/FI", "IMAGENAME eq tracert.exe").Output()
-	if strings.Contains(string(out), "tracert.exe") {
-		t.Error("tracert.exe survived the cancel")
+	// The tree kill runs alongside cmd.Wait, so tracert may outlive the
+	// shell by a moment: poll rather than assume it is already gone.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		out, _ := exec.Command("tasklist", "/FI", "IMAGENAME eq tracert.exe").Output()
+		if !strings.Contains(string(out), "tracert.exe") {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("tracert.exe survived the cancel")
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 }

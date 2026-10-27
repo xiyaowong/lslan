@@ -35,6 +35,13 @@ jobs:
           if ($LASTEXITCODE) { exit 1 }
           go test ./...
           if ($LASTEXITCODE) { exit 1 }
+      # 扫描器和 UI 都是并发跑的,数据竞争只有这个构建标志能抓到。
+      # 它又需要 cgo,所以单列一步,与上面的普通测试分开。
+      - name: Race
+        shell: pwsh
+        env:
+          CGO_ENABLED: "1"
+        run: go test -race ./...
       - name: Version and tag agree
         shell: pwsh
         run: |
