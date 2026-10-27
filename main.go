@@ -30,7 +30,7 @@ func main() {
 	mygo.App.WhenReady(func() {
 		w, h := windowSize(mygo.Screen.PrimaryDisplay().WorkArea.Width, mygo.Screen.PrimaryDisplay().WorkArea.Height)
 		a.AttachWindow(mygo.WindowOptions{
-			Title:  "局域网 IP 扫描",
+			Title:  "局域网扫描",
 			Width:  w,
 			Height: h,
 			// The size is fixed: no maximize button and no resizing (#47).
@@ -66,3 +66,4 @@ func fit(pref, avail int, share float64, least int) int {
 	}
 	return min(max(min(pref, int(float64(avail)*share)), least), avail)
 }
+
