@@ -75,14 +75,39 @@ func (a *app) sourceAddr() netip.Addr { return a.currentNIC().IP }
 // visibleHosts lists the table's rows, filtered and sorted per state.
 func (a *app) visibleHosts() []model.Host {
 	out := make([]model.Host, 0, len(a.hosts))
+	query := strings.ToLower(strings.TrimSpace(a.search))
 	for _, h := range a.hosts {
 		if !a.showOffline && h.State == model.StateOffline {
+			continue
+		}
+		if query != "" && !a.matches(h, query) {
 			continue
 		}
 		out = append(out, h)
 	}
 	sortHosts(out, a.sort)
 	return out
+}
+
+// matches reports whether a host is worth showing for a search: the
+// fields on screen, the type it was guessed to be, and the ports found on
+// it, so a user can look for "打印机" or for a port number as well as an
+// address.
+func (a *app) matches(h model.Host, query string) bool {
+	if deviceKindOf(h, a.ports[h.IP]).Label() == query {
+		return true
+	}
+	for _, s := range []string{h.IP.String(), h.Hostname, h.Vendor, h.MAC} {
+		if strings.Contains(strings.ToLower(s), query) {
+			return true
+		}
+	}
+	for _, p := range a.ports[h.IP] {
+		if p.Open && strconv.Itoa(p.Number) == query {
+			return true
+		}
+	}
+	return false
 }
 
 func sortHosts(hs []model.Host, so ui.SortOrder) {
