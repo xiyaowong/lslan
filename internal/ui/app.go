@@ -84,9 +84,11 @@ type app struct {
 	scanCancelled bool
 	scanErr       string
 	scanNote      string
-	// lastSeen holds the MACs of the previous sweep, for the note that
-	// says who came and who went.
+	// lastSeen holds the MACs of the previous completed sweep, for the
+	// note that says who came and who went; compared says that sweep has
+	// happened, so the first one stays quiet about changes.
 	lastSeen map[string]bool
+	compared bool
 	progress model.Progress
 	hosts    map[netip.Addr]model.Host
 	// withPorts makes a sweep probe the ports of every host it finds;
