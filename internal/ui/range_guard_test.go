@@ -254,10 +254,10 @@ func TestRangeBarView(t *testing.T) {
 	// locks the prefix again.
 	a.setRange(netip.MustParseAddr("192.168.1.1"), netip.MustParseAddr("192.168.9.254"))
 	tt.Frame()
-	if !tt.HasText("收窄到 C 段") {
+	if !tt.HasText("收窄到本网段") {
 		t.Errorf("narrow button missing, texts %q", tt.Texts())
 	}
-	if err := tt.Click("收窄到 C 段"); err != nil {
+	if err := tt.Click("收窄到本网段"); err != nil {
 		t.Fatalf("click narrow: %v", err)
 	}
 	tt.Frame()
@@ -294,16 +294,17 @@ func TestRangeBarScan(t *testing.T) {
 		t.Errorf("scanner got %s..%s (started %v)", sc.start, sc.end, sc.started)
 	}
 
-	// Halfway through retyping, the scan is refused with a hint.
+	// Halfway through retyping, the scan button is disabled and does
+	// nothing.
 	a.ipCells[7] = ""
 	a.scanning = false
+	sc.started = false
 	tt.Frame()
 	if err := tt.Click("开始扫描"); err != nil {
 		t.Fatalf("click scan: %v", err)
 	}
-	tt.Frame()
-	if !tt.HasText("IP 范围无效") {
-		t.Errorf("incomplete-range hint missing, texts %q", tt.Texts())
+	if sc.started {
+		t.Error("an incomplete range started a scan")
 	}
 }
 

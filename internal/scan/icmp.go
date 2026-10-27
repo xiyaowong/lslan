@@ -4,8 +4,10 @@ package scan
 
 import (
 	"context"
+	"errors"
 	"net/netip"
 	"sync"
+	"syscall"
 	"time"
 	"unsafe"
 )
@@ -89,13 +91,32 @@ var tcpFallbackPorts = []int{80, 443, 445}
 
 // tcpAliveFrom is the liveness fallback when ICMP is unavailable: a TCP
 // connect from src, the adapter's address, so a VPN's TUN adapter cannot
-// answer for a device that is not there.
+// answer for a device that is not there. A refused connection counts as
+// alive: the host answered, it just has nothing listening.
 func tcpAliveFrom(src, ip netip.Addr, perPort time.Duration) bool {
 	for _, p := range tcpFallbackPorts {
-		if c, err := dialFrom(context.Background(), src, ip, p, perPort); err == nil {
+		c, err := dialFrom(context.Background(), src, ip, p, perPort)
+		if err == nil {
 			c.Close()
+			return true
+		}
+		if refused(err) {
 			return true
 		}
 	}
 	return false
 }
+
+// refused reports whether the dial was rejected by the host itself, which
+// is proof it is up. Windows reports WSAECONNREFUSED (10061), which does
+// not compare equal to the Unix ECONNREFUSED through errors.Is.
+func refused(err error) bool {
+	var errno syscall.Errno
+	if !errors.As(err, &errno) {
+		return false
+	}
+	return errno == wsaConnRefused || errno == syscall.ECONNREFUSED
+}
+
+// wsaConnRefused is WSAECONNREFUSED, the Windows spelling of ECONNREFUSED.
+const wsaConnRefused syscall.Errno = 10061
