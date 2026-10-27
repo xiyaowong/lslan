@@ -131,8 +131,8 @@ func (a *app) commandBar(c *ui.Context, t *ui.Theme) {
 	// them change mid-sweep would leave the screen showing one range and
 	// the progress another.
 	locked := a.scanning
-	ui.Column(c).Shrink(0).Padding(14, 16, 12, 16).Gap(10).Children(func() {
-		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
+	ui.Column(c).Shrink(0).Padding(14, 16, 12, 16).Gap(space(2)).Children(func() {
+		ui.Row(c).Gap(space(3)).AlignItems(ui.Center).Children(func() {
 			fieldLabel(c, t, "网卡")
 			switch {
 			case len(a.nicOptions) > 0:
@@ -172,7 +172,7 @@ func (a *app) commandBar(c *ui.Context, t *ui.Theme) {
 		})
 		// The sweep range and its options share the second line: on the
 		// first, the adapter would have to give up too much room.
-		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(space(3)).AlignItems(ui.Center).Children(func() {
 			fieldLabel(c, t, "范围")
 			a.ipField(c, t)
 			if ui.Button(c, "整个网段").Disabled(locked).Clicked() && !locked {
@@ -207,7 +207,7 @@ func (a *app) rangeNote(c *ui.Context, t *ui.Theme) {
 		ui.Textf(c, "一次最多扫 %d 个地址，请先收窄范围", rangeLimit).
 			FontSize(12).TextColor(t.Danger).SingleLine()
 	case n > 256:
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Children(func() {
 			if ui.Button(c, "收窄到本网段").Disabled(a.scanning).Clicked() && !a.scanning {
 				a.narrowRange()
 			}
@@ -380,8 +380,8 @@ func (a *app) aboutButton(c *ui.Context, t *ui.Theme) {
 		a.aboutOpen = !a.aboutOpen
 	}
 	ui.Popover(c, b, &a.aboutOpen, func() {
-		ui.Column(c).Gap(10).Padding(14).Width(280).Children(func() {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Column(c).Gap(space(2)).Padding(14).Width(280).Children(func() {
+			ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, "局域网扫描").FontSize(13).FontWeight(600).Shrink(0)
 				ui.Text(c, mygo.App.Version()).FontSize(12).TextColor(t.TextMuted)
 			})
@@ -394,7 +394,7 @@ func (a *app) aboutButton(c *ui.Context, t *ui.Theme) {
 // stat is one tally: an optional dot, a muted caption, then the number,
 // semibold and in equal-width figures so it does not jitter.
 func (a *app) stat(c *ui.Context, t *ui.Theme, label string, n int, dot bool) {
-	ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
+	ui.Row(c).Gap(space(1)).AlignItems(ui.Center).Shrink(0).Children(func() {
 		if dot {
 			ui.Box(c).Size(7, 7).Radius(3.5).Background(t.Success).Shrink(0)
 		}
@@ -416,7 +416,7 @@ func (a *app) tablePane(c *ui.Context, t *ui.Theme) {
 
 // emptyTable fills the table's room with the one thing to do next.
 func (a *app) emptyTable(c *ui.Context, t *ui.Theme, hidden bool) {
-	ui.Column(c).Fill().Center().Gap(10).Children(func() {
+	ui.Column(c).Fill().Center().Gap(space(2)).Children(func() {
 		switch {
 		case a.scanning:
 			ui.Spinner(c)
@@ -522,14 +522,14 @@ func (a *app) treeCell(c *ui.Context, col string, k treeKey) {
 	switch col {
 	case "ip":
 		if port {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Children(func() {
 				ui.Textf(c, "%d", k.Port).FontSize(12).FontWeight(600).FontFeatures("tnum").TextColor(text)
 				ui.Text(c, portLabel(model.Port{Number: k.Port, Service: serviceName(a.ports[k.IP], k.Port)})).
 					FontSize(12).TextColor(t.TextMuted)
 			})
 			return
 		}
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Size(8, 8).Radius(4).Background(stateDot(t, h)).Shrink(0)
 			ui.Text(c, h.IP.String()).FontFeatures("tnum").TextColor(text)
 			if a.isSelf(h.IP) {
@@ -548,7 +548,7 @@ func (a *app) treeCell(c *ui.Context, col string, k treeKey) {
 	case "hostname":
 		// The port's own name reads already in the first cell.
 		if !port {
-			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(space(1)).AlignItems(ui.Center).Children(func() {
 				if kind := deviceKindOf(h, a.ports[k.IP]); kind != kindUnknown {
 					ui.Text(c, kind.Label()).FontSize(12).TextColor(t.Accent).Shrink(0)
 				}

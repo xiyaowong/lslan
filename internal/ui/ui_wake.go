@@ -305,7 +305,7 @@ func (a *app) wakeDialog(c *ui.Context, t *ui.Theme) {
 			ui.Text(c, "给关机的设备发一个唤醒信号，发完会盯一会儿，看它有没有上线").
 				FontSize(12).TextColor(t.TextMuted)
 
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, a.wakeScanNote()).FontSize(12).TextColor(t.TextMuted).Shrink(1).SingleLine()
 				ui.Box(c).Grow(1)
 				// The scan's own errors show in the status bar, which this
@@ -324,14 +324,14 @@ func (a *app) wakeDialog(c *ui.Context, t *ui.Theme) {
 			}
 
 			if picks := a.wakePicks(); len(picks) > 0 {
-				ui.Column(c).Gap(6).Children(func() {
+				ui.Column(c).Gap(space(1)).Children(func() {
 					ui.Text(c, "选一台设备").FontSize(12).TextColor(t.TextMuted)
 					// Six devices at a comfortable size, and the window's
 					// least height leaves the fields and the buttons below
 					// theirs: more picks than that scroll rather than run
 					// off the bottom.
 					ui.Scroll(c).Height(120).Clip().Children(func() {
-						ui.Row(c).Gap(6).Wrap().Children(func() {
+						ui.Row(c).Gap(space(1)).Wrap().Children(func() {
 							for _, h := range picks {
 								if btn := smallButton(c, wakePickLabel(h)); btn.Clicked() {
 									a.pickWakeDevice(h.IP)
@@ -342,7 +342,7 @@ func (a *app) wakeDialog(c *ui.Context, t *ui.Theme) {
 				})
 			}
 
-			ui.Column(c).Gap(6).Children(func() {
+			ui.Column(c).Gap(space(1)).Children(func() {
 				ui.Text(c, "设备地址").FontSize(12).TextColor(t.TextMuted)
 				if field := ui.TextInput(c, &w.ipText).Label("设备地址").
 					Placeholder("也可以直接填，如 192.168.1.20"); field.Changed() {
@@ -351,7 +351,7 @@ func (a *app) wakeDialog(c *ui.Context, t *ui.Theme) {
 				}
 			})
 
-			ui.Column(c).Gap(6).Children(func() {
+			ui.Column(c).Gap(space(1)).Children(func() {
 				ui.Text(c, "MAC 地址").FontSize(12).TextColor(t.TextMuted)
 				ui.TextInput(c, &w.mac).Label("MAC 地址").
 					Placeholder("设备网卡地址，如 aa:bb:cc:dd:ee:ff")
@@ -363,7 +363,7 @@ func (a *app) wakeDialog(c *ui.Context, t *ui.Theme) {
 				ui.Text(c, msg).FontSize(12).TextColor(t.Danger)
 			}
 
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Children(func() {
 				ui.Box(c).Grow(1)
 				if ui.Button(c, "取消").Clicked() {
 					w.open = false
@@ -458,7 +458,7 @@ func (a *app) wakeStatus(c *ui.Context, t *ui.Theme) {
 	if !w.waiting {
 		return
 	}
-	ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
+	ui.Row(c).Gap(space(1)).AlignItems(ui.Center).Shrink(0).Children(func() {
 		ip := w.waitIP.String()
 		ui.Spinner(c)
 		ui.Text(c, "正在等 "+ip+" 上线").FontSize(12).TextColor(t.TextMuted)

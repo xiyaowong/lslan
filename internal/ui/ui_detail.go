@@ -70,8 +70,8 @@ func tnumFor(label string) string {
 
 // detailHeader names the device and offers to put the panel away.
 func (a *app) detailHeader(c *ui.Context, t *ui.Theme, h model.Host) {
-	ui.Column(c).Gap(8).Shrink(0).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Column(c).Gap(space(2)).Shrink(0).Children(func() {
+		ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Size(10, 10).Radius(5).Background(stateDot(t, h)).Shrink(0).
 				Label(stateLabel(h.State))
 			ui.Text(c, h.IP.String()).FontSize(20).FontWeight(600).FontFeatures("tnum")
@@ -81,12 +81,12 @@ func (a *app) detailHeader(c *ui.Context, t *ui.Theme, h model.Host) {
 			// The dot alone leaves the state to colour; the word says it.
 			ui.Text(c, stateLabel(h.State)).FontSize(12).TextColor(t.TextMuted)
 			ui.Box(c).Grow(1)
-			if iconButton(c, "关闭详情", "关闭", 18, drawClose).Clicked() {
+			if iconButton(c, "关闭详情", "关闭", iconSize, drawClose).Clicked() {
 				a.selRow, a.selIP = -1, netip.Addr{}
 			}
 		})
 		if h.Gateway || h.ViaMDNS {
-			ui.Row(c).Gap(6).Children(func() {
+			ui.Row(c).Gap(space(1)).Children(func() {
 				if h.Gateway {
 					bg, fg := gatewayPill(t)
 					pill(c, "网关", bg, fg)
@@ -111,7 +111,7 @@ func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
 	// The facts are one group: their rows sit closer to each other than
 	// the sections around them, so they read as a block rather than as
 	// more sections of the same weight.
-	ui.Column(c).Gap(8).Children(func() {
+	ui.Column(c).Gap(space(2)).Children(func() {
 		for _, f := range [4]fact{
 			{"主机名", h.Hostname},
 			{"厂商", h.Vendor},
@@ -119,14 +119,14 @@ func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
 			{"上次在线", seen},
 		} {
 			value := f.value
-			ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
+			ui.Row(c).Gap(space(1)).AlignItems(ui.Center).Shrink(0).Children(func() {
 				ui.Text(c, f.label).FontSize(12).Width(64).TextColor(t.TextMuted).Shrink(0)
 				ui.Text(c, orDash(value)).FontSize(13).SingleLine().Tooltip(value).
 					FontFeatures(tnumFor(f.label))
 				// A MAC is worth copying for router bindings and filters; the
 				// other facts live on the screen that shows them.
 				if f.label == "MAC 地址" && value != "" {
-					if iconButton(c, "复制 MAC 地址", "复制", 18, drawCopy).Clicked() {
+					if iconButton(c, "复制 MAC 地址", "复制", iconSize, drawCopy).Clicked() {
 						c.WriteClipboard(value)
 						c.Toast("已复制：" + value)
 					}
@@ -143,7 +143,7 @@ func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
 // detailActions are what the host offers, in one wrapping row; the presets
 // beyond the common one wait behind 更多.
 func (a *app) detailActions(c *ui.Context, h model.Host) {
-	ui.Row(c).Gap(6).AlignItems(ui.Center).Wrap().Shrink(0).Children(func() {
+	ui.Row(c).Gap(space(1)).AlignItems(ui.Center).Wrap().Shrink(0).Children(func() {
 		pinging := a.pingCancel != nil && a.pingIP == h.IP
 		label := "Ping"
 		if pinging {
@@ -210,12 +210,12 @@ func (a *app) detailActions(c *ui.Context, h model.Host) {
 // session runs the pane is the only output there is, so the ✕ that
 // clears it appears once the session has stopped (#64).
 func (a *app) pingPane(c *ui.Context, t *ui.Theme) {
-	ui.Column(c).Gap(8).Padding(10, 18, 12, 18).Shrink(0).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Column(c).Gap(space(2)).Padding(10, 18, 12, 18).Shrink(0).Children(func() {
+		ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Children(func() {
 			sectionTitle(c, "Ping 结果")
 			ui.Box(c).Grow(1)
 			if a.pingCancel == nil {
-				if iconButton(c, "关闭 Ping 结果", "关闭", 16, drawClose).Clicked() {
+				if iconButton(c, "关闭 Ping 结果", "关闭", iconSize, drawClose).Clicked() {
 					a.closePing()
 				}
 			}
@@ -246,19 +246,25 @@ func (a *app) pingPane(c *ui.Context, t *ui.Theme) {
 // live session — the device's output streaming in, the user's keys
 // going out — with a way to hang up.
 func (a *app) telnetPane(c *ui.Context, t *ui.Theme) {
-	ui.Column(c).Gap(8).Padding(10, 18, 12, 18).Shrink(0).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Column(c).Gap(space(2)).Padding(10, 18, 12, 18).Shrink(0).Children(func() {
+		ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Children(func() {
 			sectionTitle(c, "远程终端测试")
 			ui.Textf(c, "%s:%d", a.telnetIP, a.telnetPort).
 				FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted)
 			ui.Box(c).Grow(1)
-			if flatButton(c, "断开").Clicked() {
+			// The other panes close with a ✕ once their run is over; this
+			// one hangs up while it still is, and closes once it is not.
+			if a.telnetPending || a.telnetTerm != nil {
+				if flatButton(c, "断开").Clicked() {
+					a.stopTelnet()
+				}
+			} else if iconButton(c, "关闭远程终端", "关闭", iconSize, drawClose).Clicked() {
 				a.stopTelnet()
 			}
 		})
 		switch {
 		case a.telnetPending:
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Children(func() {
 				ui.Spinner(c)
 				ui.Text(c, "正在连接…").FontSize(12).TextColor(t.TextMuted)
 			})
@@ -283,8 +289,8 @@ func sectionTitle(c *ui.Context, s string) {
 // section is a group of results: a title line with a note, and the rows
 // boxed under it.
 func section(c *ui.Context, t *ui.Theme, title, note string, rows func()) {
-	ui.Column(c).Gap(8).Shrink(0).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Column(c).Gap(space(2)).Shrink(0).Children(func() {
+		ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Children(func() {
 			sectionTitle(c, title)
 			if note != "" {
 				ui.Text(c, note).FontSize(12).TextColor(t.TextMuted).SingleLine()
@@ -302,7 +308,7 @@ func (a *app) portSection(c *ui.Context, t *ui.Theme, h model.Host) {
 	scanned, done := a.ports[h.IP]
 	switch {
 	case a.portProbing(h.IP):
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Shrink(0).Children(func() {
+		ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Shrink(0).Children(func() {
 			ui.Spinner(c)
 			ui.Text(c, "正在扫描端口…").FontSize(12).TextColor(t.TextMuted)
 		})
@@ -343,7 +349,7 @@ func (a *app) portSection(c *ui.Context, t *ui.Theme, h model.Host) {
 				})
 		})
 	default:
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Shrink(0).Children(func() {
+		ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Shrink(0).Children(func() {
 			sectionTitle(c, "端口")
 			ui.Text(c, "还没扫描过").FontSize(12).TextColor(t.TextMuted)
 		})
@@ -374,7 +380,7 @@ const (
 // step (issue #18) as a text button, and a button copying the port.
 func (a *app) portRow(c *ui.Context, t *ui.Theme, ip netip.Addr, p model.Port) {
 	acts := portActions(ip, p)
-	ui.Row(c).Height(portRowHeight).Padding(0, 8, 0, 12).AlignItems(ui.Center).Gap(8).Children(func() {
+	ui.Row(c).Height(portRowHeight).Padding(0, 8, 0, 12).AlignItems(ui.Center).Gap(space(2)).Children(func() {
 		ui.Textf(c, "%d", p.Number).FontSize(13).FontWeight(600).FontFeatures("tnum").Width(42).
 			TextAlign(ui.End)
 		label := portLabel(p)

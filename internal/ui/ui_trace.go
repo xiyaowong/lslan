@@ -155,8 +155,8 @@ func (a *app) traceVisible(ip netip.Addr) bool {
 // the target, a stop button while the process runs, an ✕ once it has
 // ended, then the hops as they land.
 func (a *app) tracePane(c *ui.Context, t *ui.Theme) {
-	ui.Column(c).Gap(8).Padding(10, 18, 12, 18).Shrink(0).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Column(c).Gap(space(2)).Padding(10, 18, 12, 18).Shrink(0).Children(func() {
+		ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Children(func() {
 			sectionTitle(c, "Tracert 结果")
 			ui.Text(c, a.traceIP.String()).FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted)
 			ui.Box(c).Grow(1)
@@ -164,7 +164,7 @@ func (a *app) tracePane(c *ui.Context, t *ui.Theme) {
 				if flatButton(c, "停止").Clicked() {
 					a.stopTrace()
 				}
-			} else if iconButton(c, "关闭路由跟踪", "关闭", 16, drawClose).Clicked() {
+			} else if iconButton(c, "关闭路由跟踪", "关闭", iconSize, drawClose).Clicked() {
 				a.closeTrace()
 			}
 		})

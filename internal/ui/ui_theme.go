@@ -51,7 +51,7 @@ func appTheme(dark bool) *ui.Theme {
 	}
 	t.Radius = 4
 	// 4.5 puts table rows at 36px while keeping controls compact.
-	t.Spacing = 4.5
+	t.Spacing = themeSpacing
 	t.FontSize = 13
 	// Toasts ride the theme's inverse pair; Fluent's toast layer is the
 	// same dark acrylic in both appearances, so a dark one never sits as
@@ -64,6 +64,14 @@ func appTheme(dark bool) *ui.Theme {
 	t.InverseText = ui.Hex("#ffffff")
 	return t
 }
+
+// Sizing on the theme's own scale: t.Spacing is 4.5, so a gap or padding
+// written here matches the controls mygo sizes with the same number.
+func space(n float32) float32 { return n * themeSpacing }
+
+// themeSpacing mirrors the Spacing appTheme sets; the one place the UI's
+// own gaps take their unit from.
+const themeSpacing = 4.5
 
 // The extras below are the colors the theme type has no field for, each
 // in both appearances.

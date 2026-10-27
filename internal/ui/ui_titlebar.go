@@ -35,7 +35,7 @@ const TitleBarHeight = 44
 // (HideWindowButtons).
 func (a *app) titleBar(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Height(TitleBarHeight).Shrink(0).DragWindow().Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(0, 0, 0, gutter).Shrink(0).Children(func() {
+		ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Padding(0, 0, 0, gutter).Shrink(0).Children(func() {
 			if a.logo != nil {
 				ui.Image(c, a.logo).Size(16, 16).Radius(4).Shrink(0)
 			}

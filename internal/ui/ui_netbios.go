@@ -195,7 +195,7 @@ func (a *app) netbiosReset() {
 // network gave it. Asked when the details open; a dash while nothing
 // came back — no words about asking or failing.
 func (a *app) netbiosFact(c *ui.Context, t *ui.Theme, ip netip.Addr) {
-	ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
+	ui.Row(c).Gap(space(1)).AlignItems(ui.Center).Shrink(0).Children(func() {
 		ui.Text(c, "NetBIOS 名").FontSize(12).Width(64).TextColor(t.TextMuted).Shrink(0)
 		ui.Text(c, orDash(a.netbios.names[ip])).FontSize(13).SingleLine()
 	})
