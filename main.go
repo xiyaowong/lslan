@@ -38,7 +38,7 @@ func main() {
 			// maximize button rather than none; the view draws its own
 			// minimize and close (ui_titlebar.go).
 			TitleBarStyle:     mygo.TitleBarHidden,
-			TitleBarHeight:    44,
+			TitleBarHeight:    ui.TitleBarHeight,
 			DisableResize:     true,
 			DisableMaximize:   true,
 			HideWindowButtons: true,

@@ -22,18 +22,20 @@ type treeKey struct {
 // hostTreeColumns is the set the card shows while it has the room; the
 // narrower card keeps only what identifies a device. Every column is as
 // wide as what it holds, and the last takes the room left and shows
-// nothing, so a wide window leaves the table at its own width.
+// nothing, so a wide window leaves the table at its own width. The IP
+// column also carries the 网关 and 服务发现 badges, which is why it is
+// wider than an address alone.
 var (
 	hostTreeColumns = []ui.TableColumn{
-		{Title: "IP 地址", ID: "ip", Width: 184, MinWidth: 168, Sortable: true},
-		{Title: "主机名", ID: "hostname", Width: 180, MinWidth: 116, Sortable: true},
-		{Title: "厂商", ID: "vendor", Width: 150, MinWidth: 116, Sortable: true},
-		{Title: "MAC 地址", ID: "mac", Width: 132, MinWidth: 120},
+		{Title: "IP 地址", ID: "ip", Width: 232, MinWidth: 212, Sortable: true},
+		{Title: "主机名", ID: "hostname", Width: 170, MinWidth: 116, Sortable: true},
+		{Title: "厂商", ID: "vendor", Width: 140, MinWidth: 110, Sortable: true},
+		{Title: "MAC 地址", ID: "mac", Width: 140, MinWidth: 136},
 		{Title: "状态", ID: "state", Width: 56, Sortable: true},
 		{Title: "", ID: "space", MinWidth: 0},
 	}
 	hostTreeColumnsNarrow = []ui.TableColumn{
-		{Title: "IP 地址", ID: "ip", Width: 184, MinWidth: 168, Sortable: true},
+		{Title: "IP 地址", ID: "ip", Width: 232, MinWidth: 212, Sortable: true},
 		{Title: "主机名", ID: "hostname", Width: 160, MinWidth: 100, Sortable: true},
 		{Title: "状态", ID: "state", Width: 56, Sortable: true},
 		{Title: "", ID: "space", MinWidth: 0},
@@ -66,15 +68,17 @@ const (
 // a width of its own, the selected device's details take the rest, and
 // the line between them drags.
 func (a *app) body(c *ui.Context, t *ui.Theme) {
-	ui.Column(c).Grow(1).Shrink(1).Padding(0, 16, 12, 16).Children(func() {
+	ui.Column(c).Grow(1).Shrink(1).Padding(gutter, gutter, gutter, gutter).Children(func() {
 		if !a.selIP.IsValid() {
 			a.workspaceCard(c, t).Fill()
 			return
 		}
 		w, _ := c.Size()
 		// The card keeps its width, but leaves the panel its least and the
-		// card its own, so a small window squeezes the card first.
-		a.cardWidth = min(max(a.cardWidth, cardWidthMin), cardWidthMax, max(w-16-12-detailMinWidth, cardWidthMin))
+		// card its own, so a small window squeezes the card first. Both
+		// gutters and the split's own 1px divider come off the room.
+		a.cardWidth = min(max(a.cardWidth, cardWidthMin), cardWidthMax,
+			max(w-2*gutter-1-detailMinWidth, cardWidthMin))
 		ui.Split(c, &a.cardWidth, func() {
 			a.workspaceCard(c, t).Fill()
 		}, func() {
@@ -86,6 +90,10 @@ func (a *app) body(c *ui.Context, t *ui.Theme) {
 // detailMinWidth is the least room the detail panel takes well: its facts
 // and the actions beside them.
 const detailMinWidth = 380
+
+// gutter is the window's side and top margin: the title bar, the cards and
+// the status bar all line up on it.
+const gutter = 16
 
 // cardWidth is the host card's width this frame: its own beside the
 // detail panel, the window less its margins otherwise.
@@ -261,7 +269,7 @@ func (a *app) prevEditable(i int) int {
 // push it out of the window: tallies, the scan progress, errors, and the
 // offline filter.
 func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
-	ui.Row(c).Height(32).Padding(0, 18).Gap(18).AlignItems(ui.Center).Shrink(0).Children(func() {
+	ui.Row(c).Height(32).Padding(0, gutter).Gap(18).AlignItems(ui.Center).Shrink(0).Children(func() {
 		a.stat(c, t, "在线", a.onlineCount(), true)
 		a.stat(c, t, "已发现", a.discoveredCount(), false)
 		a.stat(c, t, "总数", a.progress.Total, false)
@@ -365,9 +373,11 @@ func (a *app) hostTree(c *ui.Context, t *ui.Theme, visible []model.Host) {
 	}
 	// The list lights a chosen row with the theme's accent, which floods it;
 	// Fluent selects with a tint and keeps the text as it is, so the tree is
-	// built with an accent that is that tint and text in the theme's ink.
+	// built with an accent that is that tint, and with the muted ink and
+	// badges deepened enough to stay legible on it.
 	tint := *t
 	tint.Accent, tint.AccentText = chosenRow(t), t.Text
+	tint.TextMuted = chosenMuted(t)
 	c.SetTheme(&tint)
 	// Beside the detail panel the card keeps only what identifies a device;
 	// the rest of the columns go where they would be cut off.
