@@ -75,6 +75,9 @@ func (a *app) detailHeader(c *ui.Context, t *ui.Theme, h model.Host) {
 			ui.Box(c).Size(10, 10).Radius(5).Background(stateDot(t, h)).Shrink(0).
 				Label(stateLabel(h.State))
 			ui.Text(c, h.IP.String()).FontSize(20).FontWeight(600).FontFeatures("tnum")
+			if kind := deviceKindOf(h, a.ports[h.IP]); kind != kindUnknown {
+				ui.Text(c, kind.Label()).FontSize(12).TextColor(t.Accent)
+			}
 			// The dot alone leaves the state to colour; the word says it.
 			ui.Text(c, stateLabel(h.State)).FontSize(12).TextColor(t.TextMuted)
 			ui.Box(c).Grow(1)
@@ -374,8 +377,19 @@ func (a *app) portRow(c *ui.Context, t *ui.Theme, ip netip.Addr, p model.Port) {
 	ui.Row(c).Height(portRowHeight).Padding(0, 8, 0, 12).AlignItems(ui.Center).Gap(8).Children(func() {
 		ui.Textf(c, "%d", p.Number).FontSize(13).FontWeight(600).FontFeatures("tnum").Width(42).
 			TextAlign(ui.End)
-		ui.Text(c, portLabel(p)).FontSize(13).SingleLine().TextColor(t.TextMuted)
+		label := portLabel(p)
+		ui.Text(c, label).FontSize(13).SingleLine().TextColor(t.TextMuted).Tooltip(portTip(p))
 		ui.Box(c).Grow(1)
+		if len(acts) == 0 {
+			// No known next step for this one; the address is still worth
+			// having in hand.
+			if flatButton(c, "复制地址").Clicked() {
+				url := serviceURL("http", ip, p.Number)
+				c.WriteClipboard(url)
+				c.Toast("已复制：" + url)
+			}
+			return
+		}
 		for _, act := range acts {
 			if flatButton(c, act.Label).Clicked() {
 				if act.Kind == portTelnet {

@@ -669,6 +669,15 @@ func (a *app) applyEvent(ev scan.Event) {
 		}
 		if !cancelled {
 			a.noteChanges()
+			if a.scanNote == "" {
+				// No change to report is still an outcome worth saying.
+				n := a.discoveredCount()
+				if n == 0 {
+					a.scanNote = "扫描完成，这个范围里没有设备在线"
+				} else {
+					a.scanNote = "扫描完成，找到 " + strconv.Itoa(n) + " 台设备"
+				}
+			}
 		}
 	case scan.EventError:
 		a.scanning = false
