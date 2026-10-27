@@ -105,31 +105,36 @@ func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
 		seen = h.LastSeen.Format("01-02 15:04")
 	}
 	type fact struct{ label, value string }
-	for _, f := range [4]fact{
-		{"主机名", h.Hostname},
-		{"厂商", h.Vendor},
-		{"MAC 地址", h.MAC},
-		{"上次在线", seen},
-	} {
-		value := f.value
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
-			ui.Text(c, f.label).FontSize(12).Width(64).TextColor(t.TextMuted).Shrink(0)
-			ui.Text(c, orDash(value)).FontSize(13).SingleLine().Tooltip(value).
-				FontFeatures(tnumFor(f.label))
-			// A MAC is worth copying for router bindings and filters; the
-			// other facts live on the screen that shows them.
-			if f.label == "MAC 地址" && value != "" {
-				if iconButton(c, "复制 MAC 地址", "复制", 18, drawCopy).Clicked() {
-					c.WriteClipboard(value)
-					c.Toast("已复制：" + value)
+	// The facts are one group: their rows sit closer to each other than
+	// the sections around them, so they read as a block rather than as
+	// more sections of the same weight.
+	ui.Column(c).Gap(8).Children(func() {
+		for _, f := range [4]fact{
+			{"主机名", h.Hostname},
+			{"厂商", h.Vendor},
+			{"MAC 地址", h.MAC},
+			{"上次在线", seen},
+		} {
+			value := f.value
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
+				ui.Text(c, f.label).FontSize(12).Width(64).TextColor(t.TextMuted).Shrink(0)
+				ui.Text(c, orDash(value)).FontSize(13).SingleLine().Tooltip(value).
+					FontFeatures(tnumFor(f.label))
+				// A MAC is worth copying for router bindings and filters; the
+				// other facts live on the screen that shows them.
+				if f.label == "MAC 地址" && value != "" {
+					if iconButton(c, "复制 MAC 地址", "复制", 18, drawCopy).Clicked() {
+						c.WriteClipboard(value)
+						c.Toast("已复制：" + value)
+					}
 				}
-			}
-		})
-	}
-	// The NetBIOS name is its own fact, asked for by itself when the
-	// details open.
-	a.netbiosAskFor(h.IP)
-	a.netbiosFact(c, t, h.IP)
+			})
+		}
+		// The NetBIOS name is its own fact, asked for by itself when the
+		// details open.
+		a.netbiosAskFor(h.IP)
+		a.netbiosFact(c, t, h.IP)
+	})
 }
 
 // detailActions are what the host offers, in one wrapping row; the presets
@@ -216,7 +221,7 @@ func (a *app) pingPane(c *ui.Context, t *ui.Theme) {
 			// The terminal view paints itself and has no height of its own:
 			// without an explicit height it collapses to nothing.
 			ui.Box(c).Background(t.Background).Radius(6).Clip().Children(func() {
-				a.pingTerm.view(c).Height(140)
+				a.pingTerm.view(c).Height(toolPaneHeight)
 			})
 		} else {
 			ui.List(c, &a.pingList, len(a.pingLines), func(i int) {
@@ -225,7 +230,7 @@ func (a *app) pingPane(c *ui.Context, t *ui.Theme) {
 					color = t.TextMuted
 				}
 				ui.Text(c, a.pingLines[i]).Font("monospace").FontSize(12).TextColor(color)
-			}).Background(t.Background).Radius(6).Padding(10).Height(140)
+			}).Background(t.Background).Radius(6).Padding(10).Height(toolPaneHeight)
 		}
 		ui.Textf(c, "已发送 %d · 已接收 %d · 丢包率 %.0f%% · 平均 %.1fms",
 			a.pingStats.sent, a.pingStats.recv, a.pingStats.lossPct(), a.pingStats.avgRTT().Seconds()*1000).
@@ -260,7 +265,7 @@ func (a *app) telnetPane(c *ui.Context, t *ui.Theme) {
 			// The terminal view paints itself and has no height of its own:
 			// without an explicit height it collapses to nothing.
 			ui.Box(c).Background(t.Background).Radius(6).Clip().Children(func() {
-				a.telnetTerm.view(c).Height(180)
+				a.telnetTerm.view(c).Height(telnetPaneHeight)
 			})
 			ui.Text(c, "在窗口里输入命令，回车发送").FontSize(12).TextColor(t.TextMuted)
 		}
@@ -354,6 +359,13 @@ func (a *app) portProbing(ip netip.Addr) bool {
 // portRowHeight is a port row's height; the service list uses the same
 // measure so the two line up.
 const portRowHeight = 34
+
+// Tool panes: the plugin terminal paints itself and has no height of its
+// own, so a pane must give it one or it collapses to nothing.
+const (
+	toolPaneHeight   = 140
+	telnetPaneHeight = 180
+)
 
 // portRow is one port: the number, the service in plain words, its next
 // step (issue #18) as a text button, and a button copying the port.
