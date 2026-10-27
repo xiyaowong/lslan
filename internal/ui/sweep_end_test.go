@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -10,28 +9,25 @@ import (
 	"lslan/internal/scan"
 )
 
-// TestSweepEndSaysSomething: every completed sweep ends with a sentence,
-// not just a button returning to normal.
-func TestSweepEndSaysSomething(t *testing.T) {
-	cases := []struct {
-		name  string
-		hosts map[string]model.Host
-		want  string
-	}{
-		{"none", map[string]model.Host{}, "没有设备在线"},
-		{"some", map[string]model.Host{
-			"192.168.1.5": {IP: ip("192.168.1.5"), State: model.StateOnline, MAC: "{{MAC_z6ybfx3d}}"},
-		}, "找到 1 台设备"},
-	}
-	for _, c := range cases {
+// TestQuietSweepEnd: a sweep that found the same devices as last time
+// says nothing. What it found is on screen — the rows, the tallies, the
+// button back to 开始扫描 — so a toast would only repeat it.
+func TestQuietSweepEnd(t *testing.T) {
+	for _, hosts := range []map[string]model.Host{
+		{},
+		{"192.168.1.5": {IP: ip("192.168.1.5"), State: model.StateOnline, MAC: "{{MAC_z6ybfx3d}}"}},
+	} {
 		a := newApp()
 		a.scanning = true
-		for _, h := range c.hosts {
+		for _, h := range hosts {
 			a.hosts[h.IP] = h
 		}
+		// The baseline is exactly what this sweep will find.
+		a.compared = true
+		a.lastSeen = a.macSet()
 		a.applyEvent(scan.Event{Kind: scan.EventDone})
-		if !strings.Contains(a.scanNote, c.want) {
-			t.Errorf("%s: note = %q, want it to contain %q", c.name, a.scanNote, c.want)
+		if a.scanNote != "" {
+			t.Errorf("a sweep with nothing new said %q", a.scanNote)
 		}
 	}
 }

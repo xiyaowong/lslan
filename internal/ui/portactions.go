@@ -58,22 +58,20 @@ func portActions(ip netip.Addr, p model.Port) []portAction {
 	return acts
 }
 
-// runPortAction performs one mapped action, saying what it did; a
-// failed launch is silent, there is nothing to clean up.
+// runPortAction performs one mapped action. It says nothing when the
+// result speaks for itself — a browser opening, a clipboard holding what
+// the button promised — and speaks only when the action failed, since a
+// silent failure is the one thing a click cannot show.
 func runPortAction(c *ui.Context, act portAction) {
 	switch act.Kind {
 	case portCopy:
 		c.WriteClipboard(act.Arg)
-		c.Toast("已复制：" + act.Arg)
 	case portOpen:
 		c.OpenURL(act.Arg)
-		c.Toast("已在浏览器打开 " + act.Arg)
 	case portLaunch:
 		if err := exec.Command(act.Arg, act.Args...).Start(); err != nil {
 			c.Toast("没能打开,可以复制地址后手动打开")
-			return
 		}
-		c.Toast("已交给系统打开")
 	}
 }
 

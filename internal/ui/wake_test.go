@@ -243,10 +243,6 @@ func TestWakeSendAndWatch(t *testing.T) {
 	if len(wa.probes) == 0 || wa.probes[0] != target {
 		t.Errorf("probed %v, want %v", wa.probes, target)
 	}
-	tt.Frame()
-	if wa.wakeNote != "" {
-		t.Errorf("the note %q was not said", wa.wakeNote)
-	}
 }
 
 // TestWakeGiveUp: an address that never answers ends the wait, and

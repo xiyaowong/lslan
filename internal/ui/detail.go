@@ -132,7 +132,6 @@ func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
 				if f.label == "MAC 地址" && value != "" {
 					if iconButton(c, "复制 MAC 地址", "复制", iconSize, drawCopy).Clicked() {
 						c.WriteClipboard(value)
-						c.Toast("已复制：" + value)
 					}
 				}
 			})
@@ -194,16 +193,14 @@ func (a *app) detailActions(c *ui.Context, h model.Host) {
 				a.traceRoute(h.IP)
 			}
 		}
+		// Opening a window speaks for itself; only a failure needs words.
 		if smallButton(c, "浏览共享").Clicked() {
 			if err := exec.Command("explorer.exe", `\\`+h.IP.String()).Start(); err != nil {
 				c.Toast("没能打开共享,请确认设备已开机")
-			} else {
-				c.Toast("正在打开 \\\\" + h.IP.String())
 			}
 		}
 		if smallButton(c, "浏览器打开").Clicked() {
 			c.OpenURL("http://" + h.IP.String())
-			c.Toast("已在浏览器打开 http://" + h.IP.String())
 		}
 		// 更多 opens a popover, but it sits in the same row as the other
 		// actions: same size, same quiet face.
@@ -411,9 +408,7 @@ func (a *app) portRow(c *ui.Context, t *ui.Theme, ip netip.Addr, p model.Port) {
 			// No known next step for this one; the address is still worth
 			// having in hand.
 			if flatButton(c, "复制地址").Clicked() {
-				url := serviceURL("http", ip, p.Number)
-				c.WriteClipboard(url)
-				c.Toast("已复制：" + url)
+				c.WriteClipboard(serviceURL("http", ip, p.Number))
 			}
 			return
 		}
