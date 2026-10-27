@@ -2,7 +2,7 @@ name: Release
 
 # 打 v* tag 即构建发布:更新产物(签名归档、delta、update-*.json)由
 # mygo build -upload 直接传到 draft release,清单是应用内自动更新的
-# feed;人工检查后 publish,更新即对已装用户可见。见 RELEASE.md。
+# feed;上传完整后自动 publish,更新即对已装用户可见。见 RELEASE.md。
 on:
   push:
     tags: ["v*"]
@@ -19,9 +19,34 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # release-check compares the tag with main
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      # 坏代码不该发到全体用户手上:版本号一致、tag 在 main 上、检查通过,再构建。
+      - name: Checks
+        shell: pwsh
+        run: |
+          $bad = gofmt -l .
+          if ($bad) { Write-Output $bad; exit 1 }
+          go vet ./...
+          if ($LASTEXITCODE) { exit 1 }
+          go test ./...
+          if ($LASTEXITCODE) { exit 1 }
+      - name: Version and tag agree
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}" -replace '^v', ''
+          $json = (Get-Content mygo.json -Raw | ConvertFrom-Json).version
+          $top = (Select-String -Path CHANGELOG.md -Pattern '^## (\d+\.\d+\.\d+)' | Select-Object -First 1).Matches.Groups[1].Value
+          $bad = $false
+          if ($json -ne $v) { Write-Output "mygo.json 是 $json,与 tag $v 不一致"; $bad = $true }
+          if ($top -ne $v) { Write-Output "CHANGELOG 顶部是 $top,与 tag $v 不一致"; $bad = $true }
+          git fetch --quiet origin main
+          git merge-base --is-ancestor HEAD origin/main
+          if ($LASTEXITCODE -ne 0) { Write-Output "tag 不在 main 上"; $bad = $true }
+          if ($bad) { exit 1 }
       # gh 供 mygo build -upload 传产物;token 供其 API 调用。
       - name: Build and upload
         shell: pwsh

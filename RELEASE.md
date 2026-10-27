@@ -2,12 +2,13 @@
 
 以 0.2.0 为例。
 
-1. **CHANGELOG.md** 顶部加一节,标题就是版本号(`## 0.2.0`),写用户能懂的变化;`mygo build` 从这里取 release notes,没这节构建直接失败
+1. **CHANGELOG.md** 顶部加一节,标题就是版本号(`## 0.2.0`),写用户能懂的变化;`mygo build` 从这里取 release notes(签名构建时缺这节会失败)
 2. **mygo.json** 的 `version` 改成同一版本号
 3. `just check` 过了再提交
-4. 打 tag 推送:`git tag v0.2.0 && git push origin v0.2.0`
-5. workflow 自动构建并上传签名归档、delta、`update-windows-amd64.json` 到 **draft** release,然后自动 publish。产物清单即应用内自动更新的 feed,release 一发布,已装用户就能收到更新弹窗
-6. 检查 release 页面产物齐全(Setup exe、归档、delta、update 清单)
+4. `just release-check 0.2.0` 过了再打 tag:它核对 CHANGELOG 顶部、mygo.json 与 tag 三者版本一致,且当前提交在 main 上
+5. 打 tag 推送:`git tag v0.2.0 && git push origin v0.2.0`
+6. workflow 先跑同一套检查,通过后构建并上传签名归档、delta、`update-windows-amd64.json` 到 **draft** release,再自动 publish。产物清单即应用内自动更新的 feed,release 一发布,已装用户就能收到更新弹窗
+7. 检查 release 页面产物齐全(Setup exe、归档、delta、update 清单)
 
 ## 约定
 
