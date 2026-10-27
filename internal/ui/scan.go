@@ -40,9 +40,6 @@ func (a *app) startScan() {
 	// The sweep clears the table and the selection, which would hide the
 	// foot's pane and with it every way to stop a running tool.
 	stopped := a.stopTools()
-	// Remember who was here before, by MAC rather than address: an
-	// address may be handed to another device between sweeps.
-	a.lastSeen = a.macSet()
 	a.scanning = true
 	a.scanStopping = false
 	a.scanCancelled = false

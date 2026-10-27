@@ -44,10 +44,15 @@ func (a *app) macSet() map[string]bool {
 
 // noteChanges says what the sweep found that the last one did not, and
 // what it lost. Only a sweep that ran to the end may draw conclusions:
-// a cancelled one proves nothing about who is gone.
+// a cancelled one proves nothing about who is gone, and the first sweep
+// has nothing to compare with — it records who is here for the next one.
 func (a *app) noteChanges() {
-	if a.lastSeen == nil {
-		return // the first sweep has nothing to compare with
+	if !a.compared {
+		// First completed sweep: keep who is here as the baseline, and
+		// say nothing about changes.
+		a.lastSeen = a.macSet()
+		a.compared = true
+		return
 	}
 	now := a.macSet()
 	added, gone := 0, 0
@@ -61,6 +66,7 @@ func (a *app) noteChanges() {
 			gone++
 		}
 	}
+	a.lastSeen = now
 	if added == 0 && gone == 0 {
 		return
 	}
