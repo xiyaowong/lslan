@@ -127,14 +127,18 @@ func (a *app) detailPanel(c *ui.Context, t *ui.Theme) ui.Element {
 }
 
 func (a *app) commandBar(c *ui.Context, t *ui.Theme) {
+	// A sweep runs against the range and adapter it started with; letting
+	// them change mid-sweep would leave the screen showing one range and
+	// the progress another.
+	locked := a.scanning
 	ui.Column(c).Shrink(0).Padding(14, 16, 12, 16).Gap(10).Children(func() {
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 			fieldLabel(c, t, "网卡")
 			switch {
 			case len(a.nicOptions) > 0:
 				sel := ui.Select(c, &a.nicSel, a.nicOptions).
-					Grow(1).MinWidth(160).MaxWidth(320).Shrink(1)
-				if sel.Changed() {
+					Grow(1).MinWidth(160).MaxWidth(320).Shrink(1).Disabled(locked)
+				if sel.Changed() && !locked {
 					if i := slices.Index(a.nicOptions, a.nicSel); i >= 0 {
 						a.nicIdx = i
 						a.fillRange()
@@ -179,10 +183,11 @@ func fieldLabel(c *ui.Context, t *ui.Theme, s string) {
 }
 
 func (a *app) rangeBar(c *ui.Context, t *ui.Theme) {
+	locked := a.scanning
 	ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 		fieldLabel(c, t, "范围")
 		a.ipField(c, t)
-		if ui.Button(c, "整个网段").Clicked() {
+		if ui.Button(c, "整个网段").Disabled(locked).Clicked() && !locked {
 			a.fillRange()
 		}
 		if n, ok := a.rangeTotal(); ok {
@@ -191,7 +196,7 @@ func (a *app) rangeBar(c *ui.Context, t *ui.Theme) {
 				ui.Textf(c, "一次最多扫 %d 个地址，请先收窄范围", rangeLimit).
 					FontSize(12).TextColor(t.Danger).SingleLine()
 			case n > 256:
-				if ui.Button(c, "收窄到本网段").Clicked() {
+				if ui.Button(c, "收窄到本网段").Disabled(locked).Clicked() && !locked {
 					a.narrowRange()
 				}
 				ui.Textf(c, "共 %d 个地址，扫描会比较慢", n).FontSize(12).TextColor(t.TextMuted).SingleLine()
@@ -217,6 +222,15 @@ func (a *app) ipField(c *ui.Context, t *ui.Theme) {
 	})
 }
 
+// cellLabel names one octet cell so assistive technology can tell which
+// address and which octet it holds.
+func cellLabel(i int) string {
+	if i < 4 {
+		return "开始 IP 第 " + strconv.Itoa(i+1) + " 段"
+	}
+	return "结束 IP 第 " + strconv.Itoa(i-3) + " 段"
+}
+
 // ipCell builds one octet cell: figures in equal width, centered so a
 // short octet sits in the middle of its cell rather than hugging an edge.
 // A locked cell shows a network octet of the NIC, disabled and grayed. In
@@ -227,11 +241,11 @@ func (a *app) ipCell(c *ui.Context, t *ui.Theme, i int) {
 	if a.cellLocked(i) {
 		ui.TextInputBase(c, &a.ipCells[i]).Width(26).FontSize(13).FontFeatures("tnum").
 			TextAlign(ui.Center).Disabled(true).TextColor(t.TextMuted).
-			Label("IP 第 " + strconv.Itoa(i+1) + " 段（网段，自动）")
+			Label(cellLabel(i) + "（网段，自动）")
 		return
 	}
 	cell := ui.TextInputBase(c, &a.ipCells[i]).Width(26).FontSize(13).FontFeatures("tnum").
-		TextAlign(ui.Center).Padding(2, 0).Label("IP 第 " + strconv.Itoa(i+1) + " 段")
+		TextAlign(ui.Center).Padding(2, 0).Label(cellLabel(i)).Disabled(a.scanning)
 	cell.OnTextKey(func(k ui.TextKey) bool {
 		if k.Key == ui.KeyBackspace && k.Mods == 0 && k.Text() == "" {
 			// Empty, the key would do nothing; take it as a step back.

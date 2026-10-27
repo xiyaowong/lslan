@@ -492,10 +492,16 @@ func (a *app) startScan() {
 		a.scanErr = scanStartError(err)
 		return
 	}
+	// The sweep clears the table and the selection, which would hide the
+	// foot's pane and with it every way to stop a running tool.
+	stopped := a.stopTools()
 	a.scanning = true
 	a.scanStopping = false
 	a.scanCancelled = false
 	a.scanErr = ""
+	if stopped != "" {
+		a.scanNote = "重新扫描了，已停止 " + stopped
+	}
 	a.progress = model.Progress{Total: int(n)}
 	a.hosts = map[netip.Addr]model.Host{}
 	a.ports = map[netip.Addr][]model.Port{}
@@ -504,6 +510,30 @@ func (a *app) startScan() {
 	a.sweepPending = nil
 	a.netbiosReset() // a device may have been renamed since
 	a.selRow, a.selIP = -1, netip.Addr{}
+}
+
+// stopTools ends every tool that outlives a selection — ping, the telnet
+// session, the route trace — and reports which ones were running, so the
+// user learns why their output disappeared.
+func (a *app) stopTools() string {
+	var running []string
+	if a.pingCancel != nil {
+		running = append(running, "Ping")
+	}
+	if a.telnetPending || a.telnetTerm != nil {
+		running = append(running, "远程终端")
+	}
+	if a.traceCancel != nil {
+		running = append(running, "路由跟踪")
+	}
+	a.stopPing() // ends the telnet test too
+	a.stopTrace()
+	a.closePing()
+	a.closeTrace()
+	if len(running) == 0 {
+		return ""
+	}
+	return strings.Join(running, "、")
 }
 
 // scanStartError says why a sweep was refused in words the user can act
