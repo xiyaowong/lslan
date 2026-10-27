@@ -139,7 +139,7 @@ func (a *app) installUpdate() {
 // themselves (mygo.Updater says so), so the row only shows there.
 func (a *app) updateRow(c *ui.Context, t *ui.Theme) {
 	u := &a.updater
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Shrink(0).Children(func() {
+	ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Shrink(0).Children(func() {
 		ui.Box(c).Grow(1)
 		switch {
 		case u.installing:

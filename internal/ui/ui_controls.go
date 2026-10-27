@@ -52,13 +52,20 @@ func flatFace(c *ui.Context, b ui.Element) ui.Element {
 	return b
 }
 
+// Icon geometry: one size and one stroke for every drawn glyph, so a ✕ in
+// the detail header looks like the ✕ on a tool pane.
+const (
+	iconSize   = 16
+	iconStroke = 1.4
+)
+
 // drawClose draws an × of an icon button.
 func drawClose(p *ui.Painter, r ui.Rect, ink ui.Color) {
 	d := min(r.W, r.H) * 0.28
 	cx, cy := r.X+r.W/2, r.Y+r.H/2
 	var path ui.Path
 	path.MoveTo(cx-d, cy-d).LineTo(cx+d, cy+d).MoveTo(cx+d, cy-d).LineTo(cx-d, cy+d)
-	p.StrokePath(&path, 1.3, ink)
+	p.StrokePath(&path, iconStroke, ink)
 }
 
 // drawCopy draws two overlapping sheets, the copy of an icon button.
@@ -69,6 +76,6 @@ func drawCopy(p *ui.Painter, r ui.Rect, ink ui.Color) {
 	back.MoveTo(cx-s*0.6, cy-s).LineTo(cx+s, cy-s).LineTo(cx+s, cy+s*0.6)
 	front.MoveTo(cx-s, cy-s*0.6).LineTo(cx+s*0.6, cy-s*0.6).
 		LineTo(cx+s*0.6, cy+s).LineTo(cx-s, cy+s).Close()
-	p.StrokePath(&back, 1.2, ink)
-	p.StrokePath(&front, 1.2, ink)
+	p.StrokePath(&back, iconStroke, ink)
+	p.StrokePath(&front, iconStroke, ink)
 }
