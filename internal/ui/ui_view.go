@@ -179,8 +179,11 @@ func (a *app) commandBar(c *ui.Context, t *ui.Theme) {
 				a.fillRange()
 			}
 			ui.Box(c).Grow(1)
+			// Both options are about the sweep, so they sit together.
 			ui.Checkbox(c, &a.withPorts, "顺带扫描端口").FontSize(12).
 				Tooltip("扫描时一并查看在线地址开放的端口")
+			ui.Checkbox(c, &a.showOffline, "显示离线地址").FontSize(12).
+				Tooltip("把这次没扫到响应的地址也列出来")
 		})
 		a.rangeNote(c, t)
 	})
@@ -340,12 +343,21 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 		}
 		ui.Box(c).Grow(1)
 		a.wakeStatus(c, t)
-		if flatButton(c, "复制清单").Clicked() {
-			a.copyInventory(c)
-		}
-		ui.Checkbox(c, &a.showOffline, "显示离线地址").FontSize(12)
-		a.wakeButton(c)
-		a.aboutButton(c, t)
+		// The bar carries the controls, so they carry no frame of their own:
+		// the toolbar style drops the border and leaves only the hover tint,
+		// as a status bar's do. The gap keeps them off the tallies beside.
+		ui.Toolbar(c, func() {
+			ui.Box(c).MarginX(8)
+			// Offered only when there is something to copy; a button that
+			// says "nothing here" is a wasted click.
+			if len(a.visibleHosts()) > 0 {
+				if flatButton(c, "复制清单").Clicked() {
+					a.copyInventory(c)
+				}
+			}
+			a.wakeButton(c)
+			a.aboutButton(c, t)
+		})
 	})
 	// Brief outcomes are said once, as a toast, so the bar keeps its width
 	// however long the words are.
