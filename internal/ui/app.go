@@ -169,8 +169,7 @@ type app struct {
 
 	// wake is the 远程唤醒 tool: a dialog off the status bar, then the
 	// wait for the woken device to answer.
-	wake     wakeState
-	wakeNote string
+	wake wakeState
 
 	// Port scan state.
 	presetCache  []scan.Preset

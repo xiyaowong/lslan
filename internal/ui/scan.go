@@ -3,7 +3,6 @@ package ui
 import (
 	"errors"
 	"net/netip"
-	"strconv"
 	"strings"
 
 	"lslan/internal/model"
@@ -140,21 +139,14 @@ func (a *app) applyEvent(ev scan.Event) {
 		a.scanCancelled = false
 		switch {
 		case cancelled:
-			a.scanNote = "已取消扫描"
+			// The button and the progress line already said so.
 		case a.withPorts:
 			a.sweepPorts()
 		}
 		if !cancelled {
+			// A finished sweep shows its result: the row count, the
+			// table itself. Only a change from last time is worth words.
 			a.noteChanges()
-			if a.scanNote == "" {
-				// No change to report is still an outcome worth saying.
-				n := a.discoveredCount()
-				if n == 0 {
-					a.scanNote = "扫描完成，这个范围里没有设备在线"
-				} else {
-					a.scanNote = "扫描完成，找到 " + strconv.Itoa(n) + " 台设备"
-				}
-			}
 		}
 	case scan.EventError:
 		a.scanning = false

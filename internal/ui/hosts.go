@@ -12,22 +12,20 @@ import (
 	"lslan/internal/model"
 )
 
-// copyInventory puts the rows on screen on the clipboard as a table: the
-// router's MAC bindings, a note to a family member, a record for later —
-// none of which needs a file, which the app does not write.
-func (a *app) copyInventory(c *ui.Context) {
+// inventoryTable renders the rows on screen as a table for the clipboard:
+// the router's MAC bindings, a note to a family member, a record for
+// later — none of which needs a file, which the app does not write.
+func (a *app) inventoryTable() string {
 	hs := a.visibleHosts()
 	if len(hs) == 0 {
-		c.Toast("还没有可复制的设备")
-		return
+		return ""
 	}
 	var b strings.Builder
 	b.WriteString("IP\t主机名\t厂商\tMAC 地址\t状态\n")
 	for _, h := range hs {
 		fmt.Fprintf(&b, "%s\t%s\t%s\t%s\t%s\n", h.IP, h.Hostname, h.Vendor, h.MAC, stateLabel(h.State))
 	}
-	c.WriteClipboard(b.String())
-	c.Toast("已把 " + strconv.Itoa(len(hs)) + " 台设备复制到剪贴板")
+	return b.String()
 }
 
 // macSet is the MACs of the devices seen this run, the identity a change

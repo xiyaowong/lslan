@@ -214,8 +214,8 @@ func (a *app) waitWake(ip netip.Addr) {
 			case <-ctx.Done():
 				a.dispatch(func() {
 					if w.waitGen == gen {
+						// The status bar stops waiting; that is the news.
 						w.waiting = false
-						a.wakeNote = "还没看到 " + ip.String() + " 上线，可以稍后再扫一次"
 					}
 				})
 				return
@@ -226,7 +226,7 @@ func (a *app) waitWake(ip netip.Addr) {
 }
 
 // wakeHeard marks the woken device online, so the row it left as offline
-// lights up, and ends the wait as a success.
+// lights up. That row is the result; no toast repeats it.
 func (a *app) wakeHeard(ip netip.Addr) {
 	w := &a.wake
 	w.waiting = false
@@ -234,7 +234,6 @@ func (a *app) wakeHeard(ip netip.Addr) {
 	h.IP, h.State = ip, model.StateOnline
 	h.LastSeen = time.Now()
 	a.hosts[ip] = h
-	a.wakeNote = ip.String() + " 已上线"
 }
 
 // stopWakeWait ends the wait and clears it; safe with none running.
@@ -459,12 +458,10 @@ func (a *app) wakeStatus(c *ui.Context, t *ui.Theme) {
 		return
 	}
 	ui.Row(c).Gap(space(1)).AlignItems(ui.Center).Shrink(0).Children(func() {
-		ip := w.waitIP.String()
 		ui.Spinner(c)
-		ui.Text(c, "正在等 "+ip+" 上线").FontSize(12).TextColor(t.TextMuted)
+		ui.Text(c, "正在等 "+w.waitIP.String()+" 上线").FontSize(12).TextColor(t.TextMuted)
 		if flatButton(c, "不等了").Clicked() {
 			a.stopWakeWait()
-			a.wakeNote = "不再等 " + ip + " 上线，可以稍后再扫一次"
 		}
 	})
 }

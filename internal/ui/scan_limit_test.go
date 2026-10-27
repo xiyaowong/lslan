@@ -74,11 +74,11 @@ func TestCancelSaysStopping(t *testing.T) {
 		t.Errorf("no stopping words, texts %q", tt.Texts())
 	}
 
-	// The engine reports the end; the toast carries the outcome and clears
-	// the note in the same frame.
+	// The engine reports the end. Cancelling stops the port probes, and
+	// says nothing: the button and the progress line already did.
 	a.applyEvent(scan.Event{Kind: scan.EventDone})
-	if a.scanNote == "" {
-		t.Error("the cancel was not reported")
+	if a.scanNote != "" {
+		t.Errorf("a cancelled sweep said %q", a.scanNote)
 	}
 	tt.Frame()
 	if a.sweepLeft != 0 {

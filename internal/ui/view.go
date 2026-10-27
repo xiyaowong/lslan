@@ -340,8 +340,9 @@ func (a *app) prevEditable(i int) int {
 }
 
 // statusBarHeight is the bar's height, shared by the bar and the room the
-// body leaves it.
-const statusBarHeight = 32
+// body leaves it: tall enough for a button (29) with a clear gap above
+// and below it, so a hovered button's face never touches the window edge.
+const statusBarHeight = 40
 
 // statusBar sits at the bottom, outside the cards, so no panel drag can
 // push it out of the window: tallies, the scan progress, errors, and the
@@ -386,19 +387,16 @@ func (a *app) statusBar(c *ui.Context, t *ui.Theme) {
 			// says "nothing here" is a wasted click.
 			if len(a.visibleHosts()) > 0 {
 				if flatButton(c, "复制清单").Clicked() {
-					a.copyInventory(c)
+					c.WriteClipboard(a.inventoryTable())
 				}
 			}
 			a.wakeButton(c)
 			a.aboutButton(c, t)
 		})
 	})
-	// Brief outcomes are said once, as a toast, so the bar keeps its width
-	// however long the words are.
-	if a.wakeNote != "" {
-		c.Toast(a.wakeNote)
-		a.wakeNote = ""
-	}
+	// The one thing a finished sweep tells the user in words: who came and
+	// who went. Everything else it could say is on screen already — the
+	// row count, the table, the button back to 开始扫描.
 	if a.scanNote != "" {
 		c.Toast(a.scanNote)
 		a.scanNote = ""
