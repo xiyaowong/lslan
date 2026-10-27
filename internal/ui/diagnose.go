@@ -49,7 +49,7 @@ func (a *app) startDiagnose(ip netip.Addr) {
 	go func() {
 		// Step 1: does it answer at all?
 		answered := 0
-		for i := 0; i < diagnosePings; i++ {
+		for range diagnosePings {
 			if ctx.Err() != nil {
 				return
 			}

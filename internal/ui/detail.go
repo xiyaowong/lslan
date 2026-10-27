@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"cmp"
 	"fmt"
 	"net/netip"
 	"os/exec"
@@ -435,7 +436,7 @@ func (a *app) portRow(c *ui.Context, t *ui.Theme, ip netip.Addr, p model.Port) {
 
 // sortedPorts orders open ports first, then by number.
 func sortedPorts(ports []model.Port) []model.Port {
-	out := append([]model.Port(nil), ports...)
+	out := slices.Clone(ports)
 	slices.SortStableFunc(out, func(x, y model.Port) int {
 		if x.Open != y.Open {
 			if x.Open {
@@ -443,7 +444,7 @@ func sortedPorts(ports []model.Port) []model.Port {
 			}
 			return 1
 		}
-		return x.Number - y.Number
+		return cmp.Compare(x.Number, y.Number)
 	})
 	return out
 }

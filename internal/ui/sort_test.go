@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"math/rand"
+	"math/rand/v2"
 	"net/netip"
 	"slices"
 	"testing"

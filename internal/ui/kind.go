@@ -2,6 +2,7 @@ package ui
 
 import (
 	"net/netip"
+	"slices"
 	"strings"
 
 	"lslan/internal/model"
@@ -178,10 +179,8 @@ func (r kindRule) matches(h model.Host, ports []model.Port) bool {
 
 func hasService(h model.Host, names ...string) bool {
 	for _, s := range h.Services {
-		for _, n := range names {
-			if s.Name == n {
-				return true
-			}
+		if slices.Contains(names, s.Name) {
+			return true
 		}
 	}
 	return false
@@ -192,10 +191,8 @@ func hasPort(ports []model.Port, numbers ...int) bool {
 		if !p.Open {
 			continue
 		}
-		for _, n := range numbers {
-			if p.Number == n {
-				return true
-			}
+		if slices.Contains(numbers, p.Number) {
+			return true
 		}
 	}
 	return false

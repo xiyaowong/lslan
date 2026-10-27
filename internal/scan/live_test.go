@@ -1,9 +1,9 @@
 package scan
 
 import (
-	"context"
+	"cmp"
 	"net/netip"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 
@@ -26,11 +26,11 @@ func TestListNICsLive(t *testing.T) {
 }
 
 func TestScanPortsLive(t *testing.T) {
-	got, err := ScanPorts(context.Background(), netip.MustParseAddr("127.0.0.1"), []int{9100, 80, 445})
+	got, err := ScanPorts(t.Context(), netip.MustParseAddr("127.0.0.1"), []int{9100, 80, 445})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !sort.SliceIsSorted(got, func(i, j int) bool { return got[i].Number < got[j].Number }) {
+	if !slices.IsSortedFunc(got, func(a, b model.Port) int { return cmp.Compare(a.Number, b.Number) }) {
 		t.Errorf("results not sorted: %v", got)
 	}
 	if len(got) != 3 {
@@ -65,8 +65,7 @@ func TestScannerSweepLive(t *testing.T) {
 }
 
 func TestPingSessionLive(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	p, err := StartPing(ctx, netip.MustParseAddr("127.0.0.1"))
 	if err != nil {
 		t.Fatal(err)

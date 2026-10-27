@@ -171,7 +171,7 @@ func minTime(a, b time.Time) time.Time {
 
 // ssdpLocation reads the LOCATION header out of an SSDP reply.
 func ssdpLocation(reply string) string {
-	for _, line := range strings.Split(reply, "\n") {
+	for line := range strings.SplitSeq(reply, "\n") {
 		k, v, ok := strings.Cut(strings.TrimSpace(line), ":")
 		if !ok || !strings.EqualFold(strings.TrimSpace(k), "location") {
 			continue

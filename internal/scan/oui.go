@@ -4,7 +4,7 @@ import "strings"
 
 func init() {
 	ouiTable = make(map[string]string, 16384)
-	for _, line := range strings.Split(ouiDB, "\n") {
+	for line := range strings.SplitSeq(ouiDB, "\n") {
 		if prefix, name, ok := strings.Cut(line, ":"); ok && len(prefix) == 6 && name != "" {
 			ouiTable[prefix] = name
 		}

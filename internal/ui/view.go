@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"cmp"
 	"net/netip"
 	"slices"
 	"strconv"
@@ -653,7 +654,7 @@ func openPorts(ports []model.Port) []model.Port {
 			out = append(out, p)
 		}
 	}
-	slices.SortFunc(out, func(x, y model.Port) int { return x.Number - y.Number })
+	slices.SortFunc(out, func(x, y model.Port) int { return cmp.Compare(x.Number, y.Number) })
 	return out
 }
 

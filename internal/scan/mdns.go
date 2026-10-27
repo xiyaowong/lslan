@@ -169,7 +169,7 @@ func (m *mdnsRunner) sendQuery(ip netip.Addr, typ string) {
 		return
 	}
 	q := &dns.Msg{
-		MsgHdr: dns.MsgHdr{Id: uint16(m.id.Add(1))},
+		Id: uint16(m.id.Add(1)),
 		Question: []dns.Question{
 			{Name: dns.Fqdn(typ + ".local"), Qtype: dns.TypePTR, Qclass: dns.ClassINET},
 		},
