@@ -83,14 +83,7 @@ func (a *app) traceRoute(ip netip.Addr) {
 	}()
 }
 
-// feedTrace shows one output line in the pane's terminal, or the fallback
-// line list; the ping pane's terminal is reused, so both live tools share
-// one interactive area at a time.
 func (a *app) feedTrace(line string, ok bool) {
-	if a.traceTerm != nil {
-		a.traceTerm.feed(line, ok)
-		return
-	}
 	a.traceLines = append(a.traceLines, line)
 }
 
@@ -106,24 +99,16 @@ func (a *app) finishTrace(gen int) {
 		a.traceCancel = nil
 		cancel()
 	}
-	if a.traceTerm != nil {
-		a.traceTerm.close()
-		a.traceTerm = nil
-	}
 }
 
-// stopTrace ends the run, killing the process; the pane stays up with the
-// results until closeTrace clears it.
+// stopTrace ends the run; the pane stays up with the results until
+// closeTrace clears it.
 func (a *app) stopTrace() {
 	a.traceGen++
 	if a.traceCancel != nil {
 		cancel := a.traceCancel
 		a.traceCancel = nil
-		cancel() // kills the process via CommandContext
-	}
-	if a.traceTerm != nil {
-		a.traceTerm.close()
-		a.traceTerm = nil
+		cancel()
 	}
 }
 
@@ -133,16 +118,11 @@ func (a *app) closeTrace() {
 	a.stopTrace()
 	a.traceIP = netip.Addr{}
 	a.traceLines = nil
-	a.traceDone = false
-	if a.traceTerm != nil {
-		a.traceTerm.close()
-		a.traceTerm = nil
-	}
 }
 
 // traceVisible reports whether the trace pane shows for ip.
 func (a *app) traceVisible(ip netip.Addr) bool {
-	return a.traceIP == ip && (a.traceTerm != nil || len(a.traceLines) > 0)
+	return a.traceIP == ip && len(a.traceLines) > 0
 }
 
 // tracePane is the route trace docked to the panel's foot: a title with
@@ -162,16 +142,8 @@ func (a *app) tracePane(c *ui.Context, t *ui.Theme) {
 				a.closeTrace()
 			}
 		})
-		if a.traceTerm != nil {
-			// The terminal view paints itself and has no height of its own:
-			// without an explicit height it collapses to nothing.
-			ui.Box(c).Background(t.Background).Radius(6).Clip().Children(func() {
-				a.traceTerm.view(c).Height(140)
-			})
-		} else {
-			ui.List(c, &a.traceList, len(a.traceLines), func(i int) {
-				ui.Text(c, a.traceLines[i]).Font("monospace").FontSize(12)
-			}).Background(t.Background).Radius(6).Padding(10).Height(140)
-		}
+		ui.List(c, &a.traceList, len(a.traceLines), func(i int) {
+			ui.Text(c, a.traceLines[i]).Font("monospace").FontSize(12)
+		}).Background(t.Background).Radius(6).Padding(10).Height(140)
 	})
 }

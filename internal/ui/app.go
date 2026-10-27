@@ -22,8 +22,7 @@ import (
 	"lslan/internal/scan"
 )
 
-// scannerIface and pingSessionIface exist so test fakes can replace the
-// engine's concrete types.
+// scannerIface and pingSessionIface let tests swap in fakes.
 type scannerIface interface {
 	Events() <-chan scan.Event
 	Start(nic model.NIC, start, end netip.Addr) error
@@ -35,7 +34,6 @@ type pingSessionIface interface {
 	Cancel()
 }
 
-// pingStats is the running tally of the current ping session.
 type pingStats struct {
 	sent, recv int
 	rttTotal   time.Duration
@@ -156,8 +154,6 @@ type app struct {
 	traceIP      netip.Addr
 	traceLines   []string
 	traceList    ui.ListState
-	traceDone    bool
-	traceTerm    pingTerminalIface
 	traceStarter traceStarter
 
 	// netbios is the one-at-a-time name query for a device whose
@@ -170,7 +166,6 @@ type app struct {
 	wakeNote string
 
 	// Port scan state.
-	presetNames  []string
 	presetCache  []scan.Preset
 	portScanning bool
 	portIP       netip.Addr
@@ -257,8 +252,8 @@ func (a *app) runPending() {
 	}
 }
 
-// NewApp creates the app state. iconPNG is the app icon for the title
-// bar; a nil or undecodable one just leaves the logo out.
+// NewApp creates the app state; a nil or undecodable icon just leaves the
+// logo out.
 func NewApp(iconPNG []byte) *app {
 	a := newApp()
 	if bmp, err := ui.DecodeBitmap(iconPNG); err == nil {
@@ -267,10 +262,7 @@ func NewApp(iconPNG []byte) *app {
 	return a
 }
 
-// AttachWindow binds the app to the main window and starts NIC loading.
 func (a *app) AttachWindow(opts mygo.WindowOptions) {
-	// The appearance starts as the system's: the source stays ThemeSystem
-	// until the user picks one, so the system keeps leading until then.
 	a.dark = mygo.Theme.IsDark()
 	mygo.Theme.OnUpdated(func() {
 		if mygo.Theme.Source() != mygo.ThemeSystem {
@@ -357,8 +349,6 @@ func (a *app) fillRange() {
 	a.setRange(start, end)
 }
 
-// setRange stores the range in the segmented cells and locks the network
-// octets when both ends share a prefix.
 func (a *app) setRange(start, end netip.Addr) {
 	if !start.IsValid() || !end.IsValid() {
 		return
@@ -381,7 +371,6 @@ func (a *app) cellLocked(i int) bool {
 	return a.cellLock && i%4 != 3
 }
 
-// octet reads cell i as a number, -1 while the cell holds no full value.
 func (a *app) octet(i int) int {
 	n, err := strconv.Atoi(a.ipCells[i])
 	if err != nil {
@@ -425,7 +414,6 @@ func (a *app) parseRange() (start, end netip.Addr, ok bool) {
 	return start, end, ok
 }
 
-// narrowRange trims the range to the /24 the start IP sits in.
 func (a *app) narrowRange() {
 	start, _, ok := a.fullRange()
 	if !ok {
@@ -438,7 +426,6 @@ func (a *app) narrowRange() {
 	)
 }
 
-// rangeTotal is the size of the current range, if it parses.
 func (a *app) rangeTotal() (uint64, bool) {
 	start, end, ok := a.fullRange()
 	if !ok {
@@ -463,7 +450,6 @@ func trimRangeEdges(start, end netip.Addr) (netip.Addr, netip.Addr) {
 	return start, end
 }
 
-// rangeCount is the number of addresses from start through end.
 func rangeCount(start, end netip.Addr) (uint64, bool) {
 	if !start.IsValid() || !end.IsValid() || !start.Is4() || !end.Is4() || end.Compare(start) < 0 {
 		return 0, false
@@ -472,7 +458,6 @@ func rangeCount(start, end netip.Addr) (uint64, bool) {
 	return uint64(e) - uint64(s) + 1, true
 }
 
-// startScan begins one sweep on the selected range.
 func (a *app) startScan() {
 	if a.scanning {
 		return
@@ -635,7 +620,6 @@ func (a *app) applyPingSample(s model.PingSample) {
 	a.feedPing(line, ok)
 }
 
-// feedPing sends one output line to the terminal, when there is one.
 func (a *app) feedPing(line string, ok bool) {
 	if a.pingTerm != nil {
 		a.pingTerm.feed(line, ok)
@@ -712,10 +696,6 @@ func (a *app) stopTelnet() {
 func (a *app) presets() []scan.Preset {
 	if a.presetCache == nil {
 		a.presetCache = a.portPresets()
-		a.presetNames = make([]string, len(a.presetCache))
-		for i, p := range a.presetCache {
-			a.presetNames[i] = p.Name
-		}
 	}
 	return a.presetCache
 }

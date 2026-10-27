@@ -20,14 +20,9 @@ type treeKey struct {
 }
 
 // hostTreeColumns is the set the card shows while it has the room; the
-// narrower card keeps only what identifies a device, as the rest is in the
-// detail panel anyway.
-//
-// Every column is as wide as what it holds: an address, a MAC and a state
-// read the same however wide the window is, and host names and vendors are
-// short. The last column takes whatever room is left and shows nothing, so
-// a wide window leaves the table at its own width rather than stretching a
-// field over empty space.
+// narrower card keeps only what identifies a device. Every column is as
+// wide as what it holds, and the last takes the room left and shows
+// nothing, so a wide window leaves the table at its own width.
 var (
 	hostTreeColumns = []ui.TableColumn{
 		{Title: "IP 地址", ID: "ip", Width: 184, MinWidth: 168, Sortable: true},
@@ -102,7 +97,6 @@ func cardWidth(c *ui.Context, a *app) float32 {
 	return w - 32
 }
 
-// workspaceCard holds the command bar and the host tree.
 func (a *app) workspaceCard(c *ui.Context, t *ui.Theme) ui.Element {
 	return ui.Column(c).Background(t.Surface).Border(1, cardBorder(t)).
 		Radius(8).Shadow(0, 1, 4, 0, cardShadow(t)).Clip().Children(func() {
@@ -112,9 +106,6 @@ func (a *app) workspaceCard(c *ui.Context, t *ui.Theme) ui.Element {
 	})
 }
 
-// detailPanel is the right-hand panel for the selected device; the user
-// gives it more or less room by dragging the line between it and the host
-// card.
 func (a *app) detailPanel(c *ui.Context, t *ui.Theme) ui.Element {
 	return ui.Column(c).Background(t.Surface).Border(1, cardBorder(t)).
 		Radius(8).Shadow(0, 1, 4, 0, cardShadow(t)).Clip().Children(func() {
@@ -122,10 +113,6 @@ func (a *app) detailPanel(c *ui.Context, t *ui.Theme) ui.Element {
 	})
 }
 
-// commandBar is the card's head: the adapter and the sweep range on the
-// left, the scan action on the right, as a command bar. The adapter takes
-// the room left rather than a fixed width, and its name shortens with an
-// ellipsis instead of pushing the action out.
 func (a *app) commandBar(c *ui.Context, t *ui.Theme) {
 	ui.Column(c).Shrink(0).Padding(14, 16, 12, 16).Gap(10).Children(func() {
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
@@ -173,10 +160,6 @@ func fieldLabel(c *ui.Context, t *ui.Theme, s string) {
 	ui.Text(c, s).FontSize(12).Width(36).TextColor(t.TextMuted).Shrink(0)
 }
 
-// rangeBar is the command bar's second line: the sweep range as a
-// segmented IP control. The three network cells lock to the NIC's prefix,
-// so a wrong network cannot be typed; "整个网段" restores the NIC's
-// default.
 func (a *app) rangeBar(c *ui.Context, t *ui.Theme) {
 	ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 		fieldLabel(c, t, "范围")

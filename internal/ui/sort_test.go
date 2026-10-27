@@ -29,7 +29,7 @@ func TestSortHostsStable(t *testing.T) {
 		}
 		return out
 	}
-	for _, col := range []string{"state", "vendor", "ports", "hostname", "mac", "ip"} {
+	for _, col := range []string{"state", "vendor", "hostname", "mac", "ip"} {
 		for _, desc := range []bool{false, true} {
 			so := ui.SortOrder{Column: col, Descending: desc}
 			want := append([]model.Host(nil), hs...)

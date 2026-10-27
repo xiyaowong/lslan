@@ -11,11 +11,9 @@ import (
 	"lslan/internal/model"
 )
 
-// detail fills the sidebar for the selected host: a header with the
-// device and a way to close it, the actions, the facts, then the ports
-// and the services it advertises — all scrolling when they need more
-// room — and the ping output pinned to the panel's foot, so it stays in
-// sight however long the scrolling part runs (#51).
+// detail fills the sidebar for the selected host: header, actions, facts,
+// ports and services — scrolling when they need room — with the tool's
+// output pinned to the panel's foot (#51).
 func (a *app) detail(c *ui.Context) {
 	h, ok := a.hosts[a.selIP]
 	if !ok {
@@ -60,8 +58,7 @@ func (a *app) telnetVisible(ip netip.Addr) bool {
 	return a.telnetIP == ip && (a.telnetPending || a.telnetTerm != nil || a.telnetErr != "")
 }
 
-// detailHeader names the device: its state, address, a button copying
-// the address, the badges, and the button that puts the sidebar away.
+// detailHeader names the device and offers to put the panel away.
 func (a *app) detailHeader(c *ui.Context, t *ui.Theme, h model.Host) {
 	ui.Column(c).Gap(8).Shrink(0).Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
@@ -87,9 +84,8 @@ func (a *app) detailHeader(c *ui.Context, t *ui.Theme, h model.Host) {
 	})
 }
 
-// detailInfo is the facts, a caption and its value a row, each with a
-// button copying the value for pasting elsewhere. The ports live in the
-// port section below, which says how many are open — no separate row.
+// detailInfo is the facts, a caption and its value a row. The ports live
+// in the port section below, which says how many are open.
 func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
 	seen := ""
 	if !h.LastSeen.IsZero() {
@@ -106,10 +102,10 @@ func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
 			ui.Text(c, f.label).FontSize(12).Width(64).TextColor(t.TextMuted).Shrink(0)
 			ui.Text(c, orDash(value)).FontSize(13).SingleLine().Tooltip(value)
-			// A MAC is worth copying — router bindings, filters — the
-			// rest of the facts live on the screen that shows them.
+			// A MAC is worth copying for router bindings and filters; the
+			// other facts live on the screen that shows them.
 			if f.label == "MAC 地址" && value != "" {
-				if iconButton(c, "复制MAC 地址", "复制", 18, drawCopy).Clicked() {
+				if iconButton(c, "复制 MAC 地址", "复制", 18, drawCopy).Clicked() {
 					c.WriteClipboard(value)
 					c.Toast("已复制：" + value)
 				}
@@ -122,10 +118,8 @@ func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
 	a.netbiosFact(c, t, h.IP)
 }
 
-// detailActions are what the host offers: reach it, probe its ports, or
-// reach it in the browser, one wrapping row — a wide window keeps it on
-// one line, a narrow one wraps the tail down; the presets beyond the
-// common one wait behind 更多.
+// detailActions are what the host offers, in one wrapping row; the presets
+// beyond the common one wait behind 更多.
 func (a *app) detailActions(c *ui.Context, h model.Host) {
 	ui.Row(c).Gap(6).AlignItems(ui.Center).Wrap().Shrink(0).Children(func() {
 		pinging := a.pingCancel != nil && a.pingIP == h.IP
