@@ -33,7 +33,7 @@ func TestScanStopsRunningTools(t *testing.T) {
 	a.selRow, a.selIP = 0, host
 	a.startPing(host)
 	tt.Frame()
-	if a.pingCancel == nil {
+	if a.ping.cancel == nil {
 		t.Fatal("the ping did not start")
 	}
 
@@ -41,7 +41,7 @@ func TestScanStopsRunningTools(t *testing.T) {
 		t.Fatalf("click scan: %v", err)
 	}
 	tt.Frame()
-	if a.pingCancel != nil {
+	if a.ping.cancel != nil {
 		t.Error("the ping outlived the sweep that hid its pane")
 	}
 	if !tt.HasText("已停止") {

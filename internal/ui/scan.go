@@ -65,13 +65,13 @@ func (a *app) startScan() {
 // user learns why their output disappeared.
 func (a *app) stopTools() string {
 	var running []string
-	if a.pingCancel != nil {
+	if a.ping.cancel != nil {
 		running = append(running, "Ping")
 	}
 	if a.telnetPending || a.telnetTerm != nil {
 		running = append(running, "远程终端")
 	}
-	if a.traceCancel != nil {
+	if a.trace.running() {
 		running = append(running, "路由跟踪")
 	}
 	a.stopPing() // ends the telnet test too

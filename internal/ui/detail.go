@@ -49,13 +49,13 @@ func (a *app) detail(c *ui.Context) {
 // belongs to it and has anything to show — a live terminal, lines of a
 // fallback list, or the tally of a session that has stopped.
 func (a *app) pingVisible(ip netip.Addr) bool {
-	return a.pingIP == ip && (a.pingTerm != nil || len(a.pingLines) > 0 || a.pingStats.sent > 0)
+	return a.ping.ip == ip && (a.pingTerm != nil || len(a.pingLines) > 0 || a.pingStats.sent > 0)
 }
 
 // telnetVisible reports whether the telnet pane shows for ip: the test
 // belongs to it and is dialing, live, or saying why it failed.
 func (a *app) telnetVisible(ip netip.Addr) bool {
-	return a.telnetIP == ip && (a.telnetPending || a.telnetTerm != nil || a.telnetErr != "")
+	return a.telnet.ip == ip && (a.telnetPending || a.telnetTerm != nil || a.telnetErr != "")
 }
 
 // tnumFor picks the figures of a fact: a time and a hardware address read
@@ -144,7 +144,7 @@ func (a *app) detailInfo(c *ui.Context, t *ui.Theme, h model.Host) {
 // beyond the common one wait behind 更多.
 func (a *app) detailActions(c *ui.Context, h model.Host) {
 	ui.Row(c).Gap(space(1)).AlignItems(ui.Center).Wrap().Shrink(0).Children(func() {
-		pinging := a.pingCancel != nil && a.pingIP == h.IP
+		pinging := a.ping.cancel != nil && a.ping.ip == h.IP
 		label := "Ping"
 		if pinging {
 			label = "停止 Ping"
@@ -163,7 +163,7 @@ func (a *app) detailActions(c *ui.Context, h model.Host) {
 		if !a.portScanning && portBtn.Clicked() {
 			a.startPortScan(h.IP)
 		}
-		tracing := a.traceCancel != nil && a.traceIP == h.IP
+		tracing := a.trace.running() && a.trace.ip == h.IP
 		traceLabel := "Tracert"
 		if tracing {
 			traceLabel = "停止 Tracert"
@@ -214,7 +214,7 @@ func (a *app) pingPane(c *ui.Context, t *ui.Theme) {
 		ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Children(func() {
 			sectionTitle(c, "Ping 结果")
 			ui.Box(c).Grow(1)
-			if a.pingCancel == nil {
+			if a.ping.cancel == nil {
 				if iconButton(c, "关闭 Ping 结果", "关闭", iconSize, drawClose).Clicked() {
 					a.closePing()
 				}
@@ -249,7 +249,7 @@ func (a *app) telnetPane(c *ui.Context, t *ui.Theme) {
 	ui.Column(c).Gap(space(2)).Padding(10, 18, 12, 18).Shrink(0).Children(func() {
 		ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Children(func() {
 			sectionTitle(c, "远程终端测试")
-			ui.Textf(c, "%s:%d", a.telnetIP, a.telnetPort).
+			ui.Textf(c, "%s:%d", a.telnet.ip, a.telnetPort).
 				FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted)
 			ui.Box(c).Grow(1)
 			// The other panes close with a ✕ once their run is over; this

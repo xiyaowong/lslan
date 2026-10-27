@@ -45,7 +45,7 @@ func waitTrace(t *testing.T, a *app, done bool) {
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		a.runPending()
-		if done == (a.traceCancel == nil) {
+		if done == (a.trace.cancel == nil) {
 			return
 		}
 		time.Sleep(time.Millisecond)
@@ -183,7 +183,7 @@ func TestTraceRun(t *testing.T) {
 	waitTrace(t, a, true)
 	a.runPending()
 	tt.Frame()
-	if a.traceCancel != nil {
+	if a.trace.cancel != nil {
 		t.Error("the run did not end by itself")
 	}
 	if err := tt.Click("关闭路由跟踪"); err != nil {
@@ -211,13 +211,13 @@ func TestTraceRealProcess(t *testing.T) {
 	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		a.runPending()
-		if a.traceCancel == nil {
+		if a.trace.cancel == nil {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
 	tt.Frame()
-	if a.traceCancel != nil {
+	if a.trace.cancel != nil {
 		t.Fatal("the run did not end by itself")
 	}
 	if len(a.traceLines) == 0 {

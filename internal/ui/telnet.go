@@ -185,18 +185,14 @@ func (l *telnetLink) writeCmd(cmd, opt byte) {
 // device is dialed off the interface so a slow or dead one never freezes
 // it, and the session lands in the panel's terminal pane when it answers.
 func (a *app) startTelnet(ip netip.Addr, port int) {
-	a.stopPing()
-	a.stopTrace()
-	a.closePing() // the foot holds one output at a time
-	a.closeTrace()
-	a.telnetGen++
-	gen := a.telnetGen
-	a.telnetIP, a.telnetPort = ip, port
+	a.startTool()
+	a.telnetPort = port
 	a.telnetPending, a.telnetErr = true, ""
+	gen := a.telnet.start(ip, nil)
 	go func() {
 		conn, err := a.dialTelnet(ip, port)
 		a.dispatch(func() {
-			if a.telnetGen != gen {
+			if !a.telnet.live(gen) {
 				if conn != nil {
 					conn.Close()
 				}
@@ -237,12 +233,11 @@ func telnetDialError(err error, ip netip.Addr, port int) string {
 
 // stopTelnet ends the test and clears its pane; safe with none running.
 func (a *app) stopTelnet() {
-	a.telnetGen++
+	a.telnet.clear()
 	if a.telnetTerm != nil {
 		a.telnetTerm.close()
 		a.telnetTerm = nil
 	}
 	a.telnetPending = false
 	a.telnetErr = ""
-	a.telnetIP = netip.Addr{}
 }

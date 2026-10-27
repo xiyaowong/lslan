@@ -8,28 +8,31 @@ import (
 	"lslan/internal/model"
 )
 
-// stopPing ends the current session; its in-flight samples are dropped by
-// pingGen. Safe to call with no session running. The pane stays up with
-// the results until closePing clears it.
+// stopPing ends the current session; its in-flight samples carry a stale
+// generation and are dropped. Safe with no session running. The pane
+// stays up with the results until closePing clears it.
 func (a *app) stopPing() {
-	a.pingGen++
+	a.ping.stop()
 	a.stopTelnet() // the terminal pane holds one interactive session
 	a.stopTrace()  // so does the route trace
-	if a.pingCancel != nil {
-		cancel := a.pingCancel
-		a.pingCancel = nil
-		cancel()
-	}
 	if a.pingTerm != nil {
 		a.pingTerm.close()
 		a.pingTerm = nil
 	}
 }
 
+// startTool ends whatever tool is running and clears the panes the new
+// one would share the foot with: one output at a time.
+func (a *app) startTool() {
+	a.stopPing() // ends the telnet test and the trace too
+	a.closePing()
+	a.closeTrace()
+}
+
 // closePing clears the finished session's pane entirely; the pane shows
-// the ✕ only once pingCancel is nil, so this never ends a running one.
+// the ✕ only once no session runs, so this never ends a running one.
 func (a *app) closePing() {
-	a.pingIP = netip.Addr{}
+	a.ping.clear()
 	a.pingLines = nil
 	a.pingStats = pingStats{}
 	if a.pingTerm != nil {
@@ -42,13 +45,9 @@ func (a *app) closePing() {
 // tools' panes close whole: the foot holds one output at a time, and
 // two panes of lines would fight for the frame.
 func (a *app) startPing(ip netip.Addr) {
-	a.stopPing()
-	a.closeTrace()
+	a.startTool()
 	ctx, cancel := context.WithCancel(context.Background())
-	a.pingGen++
-	gen := a.pingGen
-	a.pingCancel = cancel
-	a.pingIP = ip
+	gen := a.ping.start(ip, cancel)
 	a.pingLines = nil
 	a.pingStats = pingStats{}
 	if term, err := a.newPingTerm(); err == nil {
@@ -64,21 +63,21 @@ func (a *app) startPing(ip netip.Addr) {
 	if err != nil {
 		a.pingLines = append(a.pingLines, "Ping 没能启动，请稍后再试")
 		a.feedPing("Ping 没能启动，请稍后再试", false)
-		a.pingCancel = nil
+		a.ping.cancel = nil
 		cancel()
 		return
 	}
 	go func() {
 		for s := range sess.Samples() {
 			a.dispatch(func() {
-				if a.pingGen == gen {
+				if a.ping.live(gen) {
 					a.applyPingSample(s)
 				}
 			})
 		}
 		a.dispatch(func() {
-			if a.pingGen == gen {
-				a.pingCancel = nil
+			if a.ping.live(gen) {
+				a.ping.cancel = nil
 			}
 		})
 		cancel()
@@ -92,7 +91,7 @@ func (a *app) applyPingSample(s model.PingSample) {
 	if s.OK {
 		st.recv++
 		st.rttTotal += s.RTT
-		line, ok = fmt.Sprintf("来自 %s: 字节=32 时间=%.1fms TTL=%d", a.pingIP, s.RTT.Seconds()*1000, s.TTL), true
+		line, ok = fmt.Sprintf("来自 %s: 字节=32 时间=%.1fms TTL=%d", a.ping.ip, s.RTT.Seconds()*1000, s.TTL), true
 	}
 	a.pingLines = append(a.pingLines, line)
 	if len(a.pingLines) > 400 {

@@ -65,14 +65,9 @@ func killTree(pid int) {
 // output line into the pane as it lands; the reader goroutine ends when
 // the process exits or ctx is cancelled (the process killed with it).
 func (a *app) traceRoute(ip netip.Addr) {
-	a.stopPing()
-	a.stopTelnet()
-	a.closePing() // the foot holds one output at a time
-	a.traceGen++
-	gen := a.traceGen
+	a.startTool()
 	ctx, cancel := context.WithCancel(context.Background())
-	a.traceCancel = cancel
-	a.traceIP = ip
+	gen := a.trace.start(ip, cancel)
 	a.traceLines = nil
 	if a.traceStarter == nil {
 		a.traceStarter = realTrace
@@ -90,14 +85,14 @@ func (a *app) traceRoute(ip netip.Addr) {
 		for sc.Scan() {
 			line := sc.Text()
 			a.dispatch(func() {
-				if a.traceGen == gen {
+				if a.trace.live(gen) {
 					a.feedTrace(line, true)
 				}
 			})
 		}
-		if err := sc.Err(); err != nil && a.traceGen == gen {
+		if err := sc.Err(); err != nil && a.trace.live(gen) {
 			a.dispatch(func() {
-				if a.traceGen == gen {
+				if a.trace.live(gen) {
 					a.feedTrace("读取路由输出时出错", false)
 				}
 			})
@@ -113,42 +108,30 @@ func (a *app) feedTrace(line string, ok bool) {
 	a.traceLines = append(a.traceLines, line)
 }
 
-// finishTrace marks the run complete; the ✕ appears once traceCancel is
-// nil, as the ping pane's does. The gen check drops a run the user has
-// since restarted.
+// finishTrace marks the run complete; the ✕ appears once no run is in
+// flight. A run the user has since restarted is left alone.
 func (a *app) finishTrace(gen int) {
-	if a.traceGen != gen {
+	if !a.trace.live(gen) {
 		return
 	}
-	if a.traceCancel != nil {
-		cancel := a.traceCancel
-		a.traceCancel = nil
-		cancel()
-	}
+	a.trace.finish()
 }
 
 // stopTrace ends the run; the pane stays up with the results until
 // closeTrace clears it.
-func (a *app) stopTrace() {
-	a.traceGen++
-	if a.traceCancel != nil {
-		cancel := a.traceCancel
-		a.traceCancel = nil
-		cancel()
-	}
-}
+func (a *app) stopTrace() { a.trace.stop() }
 
 // closeTrace clears the finished run's pane entirely; a run still going
 // is stopped first, so its process never outlives its pane.
 func (a *app) closeTrace() {
 	a.stopTrace()
-	a.traceIP = netip.Addr{}
+	a.trace.ip = netip.Addr{}
 	a.traceLines = nil
 }
 
 // traceVisible reports whether the trace pane shows for ip.
 func (a *app) traceVisible(ip netip.Addr) bool {
-	return a.traceIP == ip && len(a.traceLines) > 0
+	return a.trace.forHost(ip) && len(a.traceLines) > 0
 }
 
 // tracePane is the route trace docked to the panel's foot: a title with
@@ -158,9 +141,9 @@ func (a *app) tracePane(c *ui.Context, t *ui.Theme) {
 	ui.Column(c).Gap(space(2)).Padding(10, 18, 12, 18).Shrink(0).Children(func() {
 		ui.Row(c).Gap(space(2)).AlignItems(ui.Center).Children(func() {
 			sectionTitle(c, "Tracert 结果")
-			ui.Text(c, a.traceIP.String()).FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted)
+			ui.Text(c, a.trace.ip.String()).FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted)
 			ui.Box(c).Grow(1)
-			if a.traceCancel != nil {
+			if a.trace.running() {
 				if flatButton(c, "停止").Clicked() {
 					a.stopTrace()
 				}
