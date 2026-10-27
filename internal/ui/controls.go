@@ -22,6 +22,12 @@ func flatButton(c *ui.Context, label string) ui.Element {
 	return flatFace(c, b)
 }
 
+// smallFlatButton is flatButton at the dense row's size, for an action
+// that belongs with smallButton's but should not carry a face.
+func smallFlatButton(c *ui.Context, label string) ui.Element {
+	return flatFace(c, ui.Button(c, label).Padding(3, 10))
+}
+
 // iconButton is a small square button showing only an icon. label names
 // it for assistive technology and tests (unique in the window), tooltip
 // is the hover word — a bare verb, the position saying the rest. The
@@ -38,9 +44,10 @@ func iconButton(c *ui.Context, label, tooltip string, size float32, draw func(p 
 const minClickTarget = 24
 
 // flatFace paints a button only under the pointer, the Fluent text and
-// icon buttons.
+// icon buttons: no border, no face, just the hover tint.
 func flatFace(c *ui.Context, b ui.Element) ui.Element {
 	t := c.Theme()
+	b.Border(0, ui.Color{})
 	switch {
 	case b.Pressed():
 		b.Background(t.SurfacePressed)
