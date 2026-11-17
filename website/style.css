@@ -89,6 +89,7 @@ a:hover { text-decoration: underline; }
 .head-in { display: flex; align-items: center; justify-content: space-between; height: 56px; }
 .brand { font-weight: 650; font-size: 18px; color: var(--ink); letter-spacing: -.01em; }
 .brand:hover { text-decoration: none; }
+.brand-ic { display: inline-block; vertical-align: -4px; margin-right: 8px; border-radius: 5px; }
 .head-nav { display: flex; align-items: center; gap: 22px; }
 .head-nav a { color: var(--ink-2); font-size: 15px; }
 .head-nav a:hover { color: var(--ink); }
